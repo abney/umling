@@ -7,10 +7,10 @@ name = "umling"
 
 # When changing the version, remember to update:
 #     setup.cfg
-#     src/selkie/__init__.py
-#     docs/source/conf.py
+#     src/umling/__init__.py
+#     docs/conf.py
 
-version = "0.1.0"
+version = "0.1.2"
 
 authors = [
   { name="Steven Abney", email="abney@umich.edu" },
