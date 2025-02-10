@@ -10,7 +10,7 @@ name = "umling"
 #     src/umling/__init__.py
 #     docs/conf.py
 
-version = "0.1.2"
+version = "0.1.3"
 
 authors = [
   { name="Steven Abney", email="abney@umich.edu" },
@@ -22,6 +22,10 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "License :: Other/Proprietary License",
     "Operating System :: OS Independent",
+]
+
+dependencies = [
+    "pyfoma",
 ]
 
 [project.urls]
