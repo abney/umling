@@ -32,6 +32,9 @@ class Sequence (object):
         assert isinstance(other, Sequence), 'Cannot compare sequence to non-sequence'
         return self.elements < other.elements
 
+    def __add__ (self, other):
+        return coerce(self, EnumSet) + other
+
     def __mul__ (self, other):
         other = coerce(other, Sequence)
         return Sequence(self.elements + other.elements)
@@ -140,6 +143,12 @@ class EnumSet (Set):
         else:
             return EnumSet(coerce(x, Sequence) * coerce(other, Sequence) for x in self)
 
+    def __language__ (self):
+        if not self.data:
+            return EmptyLanguage()
+        else:
+            return Union(Concatenation(coerce(elt, Sequence)) for elt in self)
+
 
 def set (*elts):
     if len(elts) == 1 and isinstance(elts[0], types.GeneratorType):
@@ -174,51 +183,40 @@ def alphabet (*letters):
 
 #--  Regular expressions  ------------------------------------------------------
 
-class Regex (object):
+class Language (object):
 
     fst = None
-    istransducer = False
-    isinfinite = False
+    istransducer = None
+    isfinite = None
 
     def __iter__ (self):
-        visited = builtins.set()
-        for item in self._iter1():
-            if item not in visited:
-                yield item
-                visited.add(item)
+        return iter(FSA(self.fst, self.istransducer))
 
-    def _iter1 (self):
-        if self.istransducer:
-            for (cost, pairseq) in self.fst.words():
-                insyms = []
-                outsyms = []
-                for pair in pairseq:
-                    if len(pair) == 1:
-                        insyms.append(pair[0])
-                        outsyms.append(pair[0])
-                    elif len(pair) == 2:
-                        insyms.append(pair[0])
-                        outsyms.append(pair[1])
-                    else:
-                        raise Exception(f'Unexpected pair: {pair}')
-                yield (Sequence(insyms), Sequence(outsyms))
-        else:
-            for (cost, pairseq) in self.fst.words():
-                yield Sequence(pair[0] for pair in pairseq)
+    def __hash__ (self):
+        return hash(self.data)
+
+    def __contains__ (self, x):
+        return FSA(self.fst, self.istransducer).__contains__(x)
+
+    # PROBLEM: this returns False for different but equivalent expressions
+    def __eq__ (self, other):
+        other = coerce(other, Language)
+        return self.__class__ == other.__class__ and self.data == other.data
 
     def __add__ (self, other):
-        other = coerce(other, Regex)
+        other = coerce(other, Language)
         return Union([self, other])
 
     def __mul__ (self, other):
-        other = coerce(other, Regex)
+        other = coerce(other, Language)
         return Concatenation([self, other])
 
-    def lang (self):
-        if self.isinfinite:
-            return NotImplemented
-        else:
+    # not used
+    def __set__ (self):
+        if self.isfinite:
             return EnumSet(iter(self))
+        else:
+            return NotImplemented
 
     def __repr__ (self):
         s = self.__bare__()
@@ -227,13 +225,8 @@ class Regex (object):
         return '/' + s + '/'
 
 
-def re (x):
-    return coerce(x, Regex)
-
-
-def lang (x):
-    assert isinstance(x, Regex), f'Cannot coerce to language: {x}'
-    return x.lang()
+def lg (x):
+    return coerce(x, Language)
 
 def enum (x, n=10):
     for (i, item) in enumerate(x):
@@ -243,7 +236,7 @@ def enum (x, n=10):
         print(f'[{i}]', item)
 
 
-class Atom (Regex):
+class Atom (Language):
 
     @staticmethod
     def _visible (c):
@@ -254,13 +247,6 @@ class Atom (Regex):
         self.data = x
         self.fst = FST(label=(x,))
 
-    def __hash__ (self):
-        return hash(self.data)
-
-    def __eq__ (self, other):
-        other = coerce(other, Atom)
-        return self.data == other.data
-
     def __bare__ (self):
         if isinstance(self.data, str):
             if any(c.isspace() for c in self.data):
@@ -270,8 +256,15 @@ class Atom (Regex):
         else:
             return repr(self.data)
 
-    def __repr__ (self):
-        return '/' + self.__bare__() + '/'
+
+class EmptyLanguage (Language):
+
+    def __init__ (self):
+        self.data = emptyset
+        self.fst = FST()
+
+    def __bare__ (self):
+        return '\u2205'
 
 
 def sym (x):
@@ -281,15 +274,16 @@ def sym (x):
         return Atom(x)
 
 
-class Union (Regex):
+class Union (Language):
 
     def __init__ (self, args):
-        self.args = tuple(coerce(x, Regex) for x in args)
+        self.args = tuple(coerce(x, Language) for x in args)
         fst = self.args[0].fst
         for x in self.args[1:]:
             fst = fst.union(x.fst)
         self.fst = fst
-        self.isinfinite = any(arg.isinfinite for arg in self.args)
+        self.istransducer = any(arg.istransducer for arg in self.args)
+        self.isfinite = all(arg.isfinite for arg in self.args)
         
     def __bare__ (self):
         if len(self.args) > 1:
@@ -300,10 +294,10 @@ class Union (Regex):
             return '\u2205'
 
 
-class Concatenation (Regex):
+class Concatenation (Language):
 
     def __init__ (self, args):
-        self.args = tuple(coerce(x, Regex) for x in args)
+        self.args = tuple(coerce(x, Language) for x in args)
         if len(self.args) == 0:
             fst = FST(label=('',))
         else:
@@ -311,7 +305,8 @@ class Concatenation (Regex):
         for x in self.args[1:]:
             fst = fst.concatenate(x.fst)
         self.fst = fst
-        self.isinfinite = any(arg.isinfinite for arg in self.args)
+        self.istransducer = any(arg.istransducer for arg in self.args)
+        self.isfinite = all(arg.isfinite for arg in self.args)
 
     def __bare__ (self):
         if len(self.args) > 1:
@@ -322,12 +317,13 @@ class Concatenation (Regex):
             return '\u03b5'
 
 
-class KleeneClosure (Regex):
+class KleeneClosure (Language):
 
     def __init__ (self, arg):
-        self.arg = coerce(arg, Regex)
+        self.arg = coerce(arg, Language)
         self.fst = self.arg.fst.kleene_closure()
-        self.isinfinite = True
+        self.transducer = self.arg.istransducer
+        self.isfinite = False
         
     def __bare__ (self):
         return self.arg.__bare__() + '*'
@@ -343,11 +339,12 @@ class FSABuilder (object):
 
     def __init__ (self):
         self.fsa = None
+        self.istransducer = False
 
     def _require_fsa (self):
         if self.fsa is None:
             self.fsa = FST()
-            self.fsa.initialstate.name = 0
+            self.fsa.initialstate.name = 1
         return self.fsa
 
     def _require_state (self, q):
@@ -377,6 +374,7 @@ class FSABuilder (object):
                 outsym = ''
             label = (insym, outsym)
             q2 = arg4
+            self.istransducer = True
         q1 = self._require_state(q1)
         q2 = self._require_state(q2)
         if not self._get_transition(q1, label, q2):
@@ -392,12 +390,94 @@ class FSABuilder (object):
 
     def make_fsa (self):
         self._require_fsa() # create an empty one if none exists
-        fsa = self.fsa
+        fsa = FSA(self.fsa, self.istransducer)
         self.fsa = None
+        self.istranducer = False
         return fsa
 
     def erase_fsa (self):
         self.fsa = None
+        self.istransducer = False
+
+
+class FSA (Language):
+
+    def __init__ (self, fst, istransducer):
+        self.fst = fst
+        self.istransducer = self.compute_istransducer() if istransducer is None else istransducer
+
+    def compute_istransducer (self):
+        return any(len(label) > 1 for label in self.labels())
+
+    def _labels (self):
+        for q in self.fst.states:
+            for label in q.transitions:
+                yield label
+
+    def labels (self):
+        return set(self._labels())
+
+    def __iter__ (self):
+        visited = builtins.set()
+        for item in self._iter1():
+            if item not in visited:
+                yield item
+                visited.add(item)
+
+    def _iter1 (self):
+        if self.istransducer:
+            for (cost, pairseq) in self.fst.words():
+                insyms = []
+                outsyms = []
+                for pair in pairseq:
+                    if len(pair) == 1:
+                        insyms.append(pair[0])
+                        outsyms.append(pair[0])
+                    elif len(pair) == 2:
+                        insyms.append(pair[0])
+                        outsyms.append(pair[1])
+                    else:
+                        raise Exception(f'Unexpected pair: {pair}')
+                yield (Sequence(insyms), Sequence(outsyms))
+        else:
+            for (cost, pairseq) in self.fst.words():
+                yield Sequence(pair[0] for pair in pairseq)
+
+    def __contains__ (self, x):
+        x = coerce(x, Sequence)
+        fst = self.fst
+        fst.tokenize_against_alphabet = lambda x: x
+        try:
+            next(fst.generate(x, tokenize_outputs=True))
+            return True
+        except StopIteration:
+            return False
+
+    def __show__ (self):
+        fst = self.fst
+        print('Initial:', fst.initialstate.name)
+        print('Final:', ' '.join(repr(q.name) for q in fst.finalstates))
+        print('Edges:')
+        for (q1, label, q2) in sorted(self._transitions()):
+            print(' ', q1, label, q2)
+
+    def _transitions (self):
+        fst = self.fst
+        for q in fst.states:
+            for (label, transitions) in q.transitions.items():
+                for trans in transitions:
+                    if len(trans.label) == 1:
+                        label = repr(trans.label[0])
+                    else:
+                        label = ':'.join(repr(sym) for sym in trans.label)
+                    yield (q.name, label, trans.targetstate.name)
+
+
+def show (x):
+    if hasattr(x, '__show__'):
+        x.__show__()
+    else:
+        print(x)
 
 
 #--  Coercion  -----------------------------------------------------------------
@@ -406,15 +486,16 @@ class CoercionError (ValueError): pass
 
 class Coercion (object):
 
-    coercions = {frozenset: [ ((builtins.set, list, tuple, types.GeneratorType), frozenset) ],
+    coercions = {frozenset: [ ((builtins.set, list, tuple, types.GeneratorType), frozenset),
+                              (object, lambda x: frozenset([x])) ],
                  Sequence: [ ((list, tuple, types.GeneratorType), Sequence),
                              (object, lambda x: Sequence([x])) ],
-                 EnumSet: [ (set, EnumSet),
-                            ((list, tuple, types.GeneratorType), lambda x: EnumSet(iter(x))) ],
+                 EnumSet: [ ((list, tuple, types.GeneratorType), lambda x: EnumSet(iter(x))),
+                            (object, EnumSet) ],
                  Atom: [ ((str, int, float, tuple), Atom) ],
-                 Regex: [ (str, Atom),
+                 Language: [ (str, Atom),
                           (Sequence, lambda x: Concatenation(x)),
-                          (EnumSet, lambda x: Union(Concatenation(coerce(elt, Sequence)) for elt in x)) ],
+                          (EnumSet, EnumSet.__language__) ]
                  }                 
 
     def __call__ (self, x, typ):
