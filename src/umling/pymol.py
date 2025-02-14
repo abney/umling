@@ -472,12 +472,21 @@ class FSA (Language):
                         label = ':'.join(repr(sym) for sym in trans.label)
                     yield (q.name, label, trans.targetstate.name)
 
+    def __graph__ (self):
+        return self.fst.view()
+
 
 def show (x):
     if hasattr(x, '__show__'):
         x.__show__()
     else:
         print(x)
+
+def graph (x):
+    if hasattr(x, '__graph__'):
+        return x.__graph__()
+    else:
+        raise Exception('Not drawable')
 
 
 #--  Coercion  -----------------------------------------------------------------

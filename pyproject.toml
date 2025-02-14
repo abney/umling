@@ -10,14 +10,16 @@ name = "umling"
 #     src/umling/__init__.py
 #     docs/conf.py
 
-version = "0.1.4"
+version = "0.1.6"
 
 authors = [
   { name="Steven Abney", email="abney@umich.edu" },
 ]
+requires-python = ">=3.7"
 description = "Project umling"
 readme = "README.rst"
-requires-python = ">=3.7"
+license = "LicenseRef-University-of-Michigan-License"
+license-files = ["LICENSE"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: Other/Proprietary License",
