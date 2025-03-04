@@ -11,7 +11,7 @@ copyright = '2025, Steven Abney'
 author = 'Steven Abney'
 
 version = '0.1'
-release = '0.1.7'
+release = '0.1.8'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
