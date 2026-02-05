@@ -1,0 +1,78 @@
+
+# 3. Notation
+>>> from umling.pymol import *
+>>> 'a'
+'a'
+>>> seq('c', 'o', 'o', 'l')
+<'c', 'o', 'o', 'l'>
+>>> set('c', 'o', 'o', 'l')
+{'c', 'l', 'o'}
+>>> seq(epsilon, emptyset)
+<ε, ∅>
+>>> len(seq('c', 'o', 'o', 'l'))
+4
+>>> len(set('c', 'o', 'o', 'l'))
+3
+>>> len(epsilon)
+0
+
+# 5. Four functions
+>>> letters('cool')
+<'c', 'o', 'o', 'l'>
+>>> alphabet('cool')
+{'c', 'l', 'o'}
+>>> words('an orange cat')
+<'an', 'orange', 'cat'>
+>>> vocab('an orange cat')
+{'an', 'cat', 'orange'}
+
+# 6. Variables
+>>> x = letters('dog')
+>>> x
+<'d', 'o', 'g'>
+>>> try:
+...     y
+... except Exception as e:
+...     print(e)
+...
+name 'y' is not defined
+>>> x == seq('c', 'a', 't')
+False
+>>> alphabet('cool') == alphabet('loco')
+True
+
+# 7. Concatenation
+>>> seq('c', 'a', 't') * seq('f', 'i', 's', 'h')
+<'c', 'a', 't', 'f', 'i', 's', 'h'>
+>>> letters('cat') * epsilon
+<'c', 'a', 't'>
+
+# 8. Set operations
+>>> alphabet('abc') + alphabet('bcd')
+{'a', 'b', 'c', 'd'}
+>>> alphabet('abc') & alphabet('bcd')
+{'b', 'c'}
+>>> alphabet('abc') - alphabet('bcd')
+{'a'}
+>>> 'a' in alphabet('abc')
+True
+>>> alphabet('eo') <= alphabet('aeiou')
+True
+
+# 9. Coercion
+>>> letters('dog') * 's'
+<'d', 'o', 'g', 's'>
+>>> 's' * letters('cat')
+<'s', 'c', 'a', 't'>
+>>> letters('dog') * 2
+<'d', 'o', 'g', 2>
+>>> 2 * 2
+4
+>>> 's' * 'a'
+Traceback (most recent call last):
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/doctest.py", line 1368, in __run
+    exec(compile(example.source, filename, "single",
+  File "<doctest pymol-tests.txt[33]>", line 1, in <module>
+    's' * 'a'
+    ~~~~^~~~~
+TypeError: can't multiply sequence by non-int of type 'str'

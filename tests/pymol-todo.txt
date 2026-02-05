@@ -1,0 +1,46 @@
+
+Complementation
+ - of character range
+ - of general FST
+ - def __neg__ (self) - unary minus
+ - pyfoma implements negation of char ranges, but I don't see an
+   implementation of general complementation
+
+    - This is pyfoma's crange implementation (in class FST):
+    
+    @classmethod
+    def character_ranges(cls, ranges, complement = False) -> 'FST':
+        """Returns a two-state FSM from a list of unicode code point range pairs.
+           Keyword arguments:
+           complement -- if True, the character class is negated, i.e. [^ ... ], and
+           a two-state FST is returned with the single label . and all the symbols in
+           the character class are put in the alphabet.
+           """
+        newfst = cls()
+        secondstate = State()
+        newfst.states.add(secondstate)
+        newfst.finalstates = {secondstate}
+        secondstate.finalweight = 0.0
+        alphabet = set()
+        for start, end in ranges:
+            for symbol in range(start, end + 1):
+                if symbol not in alphabet:
+                    alphabet |= {chr(symbol)}
+                    if not complement:
+                        newfst.initialstate.add_transition(secondstate, (chr(symbol),), 0.0)
+        if complement:
+            newfst.initialstate.add_transition(secondstate, ('.',), 0.0)
+            alphabet.add('.')
+        newfst.alphabet = alphabet
+        return newfst
+
+Colon
+  io(i,o)
+
+lex = lex.epsilon_remove().determinize().minimize()
+
+calling an fst - coerce the argument to a language, do composition,
+and project right.
+
+equality doesn't work
+intersection doesn't work

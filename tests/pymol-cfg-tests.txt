@@ -1,0 +1,38 @@
+
+>>> from umling.pymol import *
+
+# Create categories
+>>> (S, NP, VP) = at('S', 'NP', 'VP')
+>>> S
+S
+
+# A variable
+>>> n = var('n')
+>>> n
+n
+
+# Constant values
+>>> (sg, pl) = at('sg', 'pl')
+>>> from selkie.nlp.features import meet
+>>> meet(sg, '*')
+sg
+
+# Category (type + features)
+>>> NP[sg]
+NP[sg]
+
+>>> from pymol import _grammar_builder as G
+>>> D = G.grammar.declarations
+>>> Cats = D.categories
+>>> 'S' in Cats
+False
+>>> Cats.define('S')
+>>> ent = Cats['S']
+>>> ent
+<Entry S[]>
+>>> ent.params
+()
+
+>>> R(S, NP[n], VP[n])
+S -> NP[n] VP[n]
+
