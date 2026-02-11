@@ -1,6 +1,10 @@
 
+#--  Lecture: Pymol  -----------------------------------------------------------
+
+#--  Basics
+
 # 3. Notation
->>> from umling.pymol import *
+>>> from umling.mol import *
 >>> 'a'
 'a'
 >>> seq('c', 'o', 'o', 'l')
@@ -40,6 +44,8 @@ name 'y' is not defined
 False
 >>> alphabet('cool') == alphabet('loco')
 True
+
+#--  String and set operations
 
 # 7. Concatenation
 >>> seq('c', 'a', 't') * seq('f', 'i', 's', 'h')

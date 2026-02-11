@@ -1,5 +1,9 @@
 
-# 1. Basic regular expressions
+#--  Lecture: Pymol (cont'd)  --------------------------------------------------
+
+#--  Regular expressions
+
+# 10. Basic regular expressions
 >>> from umling.pymol import *
 >>> at.a
 /a/
@@ -9,10 +13,10 @@
 /∅/
 >>> (at.a + at.b) * at.c
 /(a + b)⋅c/
->>> star('a')
+>>> star(at.a)
 /a*/
 
-# 3. Coercion to language
+# 12. Coercion to language
 >>> lg('a')
 /a/
 >>> lg(letters('abc'))
@@ -25,6 +29,12 @@
 /(b + d + g)⋅a/
 >>> alphabet('bdg') * alphabet('ai')
 /(b + d + g)⋅(a + i)/
+>>> star('a')
+/a*/
+>>> letters('cat') + letters('dog')
+/(c⋅a⋅t) + (d⋅o⋅g)/
+
+# 13. Enumeration
 >>> enum(alphabet('bdg') * alphabet('ai'))
 [0] <'b', 'a'>
 [1] <'b', 'i'>
@@ -32,9 +42,28 @@
 [3] <'d', 'i'>
 [4] <'g', 'a'>
 [5] <'g', 'i'>
->>> letters('cat') + letters('dog')
-/(c⋅a⋅t) + (d⋅o⋅g)/
+>>> enum(lg(epsilon))
+[0] ε
+>>> enum(lg(emptyset))
+(empty)
+>>> A = letters('cat') + letters('dog')
 
+# 14. Algebra
+>>> enum(A)
+>>> enum(A * set(epsilon))
+>>> type(A)
+>>> type(A * set(epsilon))
+>>> A * set(epsilon) == A
+True
+>>> enum(A * emptyset)
+(empty)
+>>> U = at.a + at.b
+>>> L = U * at.c
+>>> L
+/(a + b)⋅c/
+
+
+# Extra
 >>> enum(alphabet('ab') * at.epsilon)
 [0] <'a'>
 [1] <'b'>
