@@ -1,0 +1,44 @@
+#
+#  There are three varieties of "atom", of increasing complexity:
+#
+#      _atom   is a Python string, used in a Value.
+#
+#      atom    is a Value consisting of a single _atom, interned
+#              in the atoms Namespace.
+#
+#      Atom    is a Language that consists of a single string that
+#              consists of a single atom.
+#
+#  Importing from umling.mol.atoms accesses a PseudoModule M that
+#  wraps atoms:  M.key  translates to  atoms[key].
+#
+
+>>> from umling.mol import *
+
+>>> from umling.mol.atoms import a
+>>> type(a)
+<class 'umling.mol.features.Value'>
+
+>>> features.atoms['a'] is a
+True
+>>> b1 = features.atoms['b']
+>>> from umling.mol.atoms import b
+>>> b is b1
+True
+
+>>> c1 = atom('c')
+>>> from umling.mol.atoms import c
+>>> c1 is c
+True
+
+#
+#  A Value is coercable to an Atom
+#
+
+>>> A = a.__tolanguage__()
+>>> type(A)
+<class 'umling.mol.lang.Atom'>
+>>> enum(A)
+[0] ('a',)
+
+#>>> a * b

@@ -23,9 +23,12 @@ class Namespace (dict):
 
 #--  Value  --------------------------------------------------------------------
 
-def atom (x):
+def _newatom (x):
     assert isinstance(x, str), f'Argument must be a string: {x}'
     return Value([x])
+
+def atom (x):
+    return atoms[x]
 
 def is_sorted (lst):
     for i in range(len(lst)-1):
@@ -34,8 +37,11 @@ def is_sorted (lst):
     return True
 
 
-class Value (object):
+class Value:
     
+    # to avoid import circularity, this is set in lang.py
+    __tolanguage__ = None
+
     top = None
     bottom = None
 
@@ -107,6 +113,15 @@ class Value (object):
             else:
                 return self.bottom
 
+    def __mul__ (self, other):
+        '''
+        Coerce it to an Atom and then concatenate.
+        '''
+        return self.__tolanguage__() * other
+
+    def __rmul__ (self, other):
+        return other * self.__tolanguage__()
+
     ##  String representation.
 
     def __repr__ (self):
@@ -146,7 +161,7 @@ class Variable (str):
 ANY = Value.top = Value([])
 NULL = Value.bottom = Value([])
 
-atoms = Namespace(atom)
+atoms = Namespace(_newatom)
 variables = Namespace(Variable)
 
 from . import autosym

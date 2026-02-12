@@ -1,0 +1,189 @@
+
+>>> from mol import *
+
+>>> V = alphabet('aeiou')
+>>> V
+{'a', 'e', 'i', 'o', 'u'}
+>>> C = crange('a', 'z') - V
+>>> enum(C, 5)
+[0] <'b'>
+[1] <'c'>
+[2] <'d'>
+[3] <'f'>
+[4] <'g'>
+...
+>>> syll = star(C) * V * opt(V) * star(C)
+>>> syll(letters('ba'))
+[0] <'b', 'a'>
+>>> syll(letters('bc'))
+(empty)
+>>> syllword = syll * star(io(epsilon, '-') * syll)
+>>> baba = lg(letters('baba'))
+>>> syllword(baba)
+[0] <'b', 'a', '-', 'b', 'a'>
+[1] <'b', 'a', 'b', '-', 'a'>
+>>> enum(baba @ syllword)
+[0] (<'b', 'a', 'b', 'a'>, <'b', 'a', '-', 'b', 'a'>)
+[1] (<'b', 'a', 'b', 'a'>, <'b', 'a', 'b', '-', 'a'>)
+
+>>> f = io('-', '+')
+>>> enum(baba @ syllword @ f)
+(empty)
+>>> f = star(anysym) * io('-', '+') * star(anysym)
+>>> enum(baba @ syllword @ f)
+[0] (<'b', 'a', 'b', 'a'>, <'b', 'a', '+', 'b', 'a'>)
+[1] (<'b', 'a', 'b', 'a'>, <'b', 'a', 'b', '+', 'a'>)
+
+>>> def wordlist (words):
+...     return set(letters(word) for word in words)
+...
+>>> VLemma = wordlist(['beg', 'box', 'fake', 'panic', 'try'])
+>>> enum(VLemma)
+[0] <'b', 'e', 'g'>
+[1] <'b', 'o', 'x'>
+[2] <'t', 'r', 'y'>
+[3] <'f', 'a', 'k', 'e'>
+[4] <'p', 'a', 'n', 'i', 'c'>
+
+>>> VInfl = (seq('V', '3s') + seq('V', 'pl') + seq('V', 'past') +
+...          seq('V', 'pres', 'ptc') + seq('V', 'past', 'ptc'))
+...
+>>> enum(VInfl)
+[0] <'V', '3s'>
+[1] <'V', 'past'>
+[2] <'V', 'pl'>
+[3] <'V', 'past', 'ptc'>
+[4] <'V', 'pres', 'ptc'>
+>>> lex = VLemma * VInfl
+>>> enum(lex, 100)
+[0] <'b', 'e', 'g', 'V', '3s'>
+[1] <'b', 'e', 'g', 'V', 'past'>
+[2] <'b', 'e', 'g', 'V', 'pl'>
+[3] <'b', 'o', 'x', 'V', '3s'>
+[4] <'b', 'o', 'x', 'V', 'past'>
+[5] <'b', 'o', 'x', 'V', 'pl'>
+[6] <'t', 'r', 'y', 'V', '3s'>
+[7] <'t', 'r', 'y', 'V', 'past'>
+[8] <'t', 'r', 'y', 'V', 'pl'>
+[9] <'b', 'e', 'g', 'V', 'past', 'ptc'>
+[10] <'b', 'e', 'g', 'V', 'pres', 'ptc'>
+[11] <'b', 'o', 'x', 'V', 'past', 'ptc'>
+[12] <'b', 'o', 'x', 'V', 'pres', 'ptc'>
+[13] <'f', 'a', 'k', 'e', 'V', '3s'>
+[14] <'f', 'a', 'k', 'e', 'V', 'past'>
+[15] <'f', 'a', 'k', 'e', 'V', 'pl'>
+[16] <'t', 'r', 'y', 'V', 'past', 'ptc'>
+[17] <'t', 'r', 'y', 'V', 'pres', 'ptc'>
+[18] <'f', 'a', 'k', 'e', 'V', 'past', 'ptc'>
+[19] <'f', 'a', 'k', 'e', 'V', 'pres', 'ptc'>
+[20] <'p', 'a', 'n', 'i', 'c', 'V', '3s'>
+[21] <'p', 'a', 'n', 'i', 'c', 'V', 'past'>
+[22] <'p', 'a', 'n', 'i', 'c', 'V', 'pl'>
+[23] <'p', 'a', 'n', 'i', 'c', 'V', 'past', 'ptc'>
+[24] <'p', 'a', 'n', 'i', 'c', 'V', 'pres', 'ptc'>
+
+>>> VInfl = (io(seq('V', '3s'), letters('+s')) +
+...          io(seq('V', 'pl'), letters('+')) +
+...          io(seq('V', 'past'), letters('+ed')) +
+...          io(seq('V', 'pres', 'ptc'), letters('+ing')) +
+...          io(seq('V', 'past', 'ptc'), letters('+ed')))
+...
+>>> lex = VLemma * VInfl
+>>> enum(lex, 100)
+[0] (<'b', 'e', 'g', 'V', 'pl'>, <'b', 'e', 'g', '+'>)
+[1] (<'b', 'o', 'x', 'V', 'pl'>, <'b', 'o', 'x', '+'>)
+[2] (<'t', 'r', 'y', 'V', 'pl'>, <'t', 'r', 'y', '+'>)
+[3] (<'b', 'e', 'g', 'V', '3s'>, <'b', 'e', 'g', '+', 's'>)
+[4] (<'b', 'o', 'x', 'V', '3s'>, <'b', 'o', 'x', '+', 's'>)
+[5] (<'t', 'r', 'y', 'V', '3s'>, <'t', 'r', 'y', '+', 's'>)
+[6] (<'b', 'e', 'g', 'V', 'past'>, <'b', 'e', 'g', '+', 'e', 'd'>)
+[7] (<'b', 'o', 'x', 'V', 'past'>, <'b', 'o', 'x', '+', 'e', 'd'>)
+[8] (<'f', 'a', 'k', 'e', 'V', 'pl'>, <'f', 'a', 'k', 'e', '+'>)
+[9] (<'t', 'r', 'y', 'V', 'past'>, <'t', 'r', 'y', '+', 'e', 'd'>)
+[10] (<'b', 'e', 'g', 'V', 'past', 'ptc'>, <'b', 'e', 'g', '+', 'e', 'd'>)
+[11] (<'b', 'o', 'x', 'V', 'past', 'ptc'>, <'b', 'o', 'x', '+', 'e', 'd'>)
+[12] (<'f', 'a', 'k', 'e', 'V', '3s'>, <'f', 'a', 'k', 'e', '+', 's'>)
+[13] (<'t', 'r', 'y', 'V', 'past', 'ptc'>, <'t', 'r', 'y', '+', 'e', 'd'>)
+[14] (<'b', 'e', 'g', 'V', 'pres', 'ptc'>, <'b', 'e', 'g', '+', 'i', 'n', 'g'>)
+[15] (<'b', 'o', 'x', 'V', 'pres', 'ptc'>, <'b', 'o', 'x', '+', 'i', 'n', 'g'>)
+[16] (<'f', 'a', 'k', 'e', 'V', 'past'>, <'f', 'a', 'k', 'e', '+', 'e', 'd'>)
+[17] (<'p', 'a', 'n', 'i', 'c', 'V', 'pl'>, <'p', 'a', 'n', 'i', 'c', '+'>)
+[18] (<'t', 'r', 'y', 'V', 'pres', 'ptc'>, <'t', 'r', 'y', '+', 'i', 'n', 'g'>)
+[19] (<'f', 'a', 'k', 'e', 'V', 'past', 'ptc'>, <'f', 'a', 'k', 'e', '+', 'e', 'd'>)
+[20] (<'p', 'a', 'n', 'i', 'c', 'V', '3s'>, <'p', 'a', 'n', 'i', 'c', '+', 's'>)
+[21] (<'f', 'a', 'k', 'e', 'V', 'pres', 'ptc'>, <'f', 'a', 'k', 'e', '+', 'i', 'n', 'g'>)
+[22] (<'p', 'a', 'n', 'i', 'c', 'V', 'past'>, <'p', 'a', 'n', 'i', 'c', '+', 'e', 'd'>)
+[23] (<'p', 'a', 'n', 'i', 'c', 'V', 'past', 'ptc'>, <'p', 'a', 'n', 'i', 'c', '+', 'e', 'd'>)
+[24] (<'p', 'a', 'n', 'i', 'c', 'V', 'pres', 'ptc'>, <'p', 'a', 'n', 'i', 'c', '+', 'i', 'n', 'g'>)
+
+>>> del_e = rewrite('e', epsilon, before=(at('+') * V))
+>>> del_e(letters('fake+ing'))
+[0] <'f', 'a', 'k', '+', 'i', 'n', 'g'>
+>>> del_e(letters('fake+s'))
+[0] <'f', 'a', 'k', 'e', '+', 's'>
+>>> del_e(letters('box+ing'))
+[0] <'b', 'o', 'x', '+', 'i', 'n', 'g'>
+
+>>> repl_y1 = rewrite('y', letters('ie'), before=letters('+s'))
+>>> repl_y2 = rewrite('y', 'i', before=letters('+ed'))
+>>> repl_y1(letters('city+s'))
+[0] <'c', 'i', 't', 'i', 'e', '+', 's'>
+>>> repl_y1(letters('try+ed'))
+[0] <'t', 'r', 'y', '+', 'e', 'd'>
+>>> repl_y2(letters('try+ed'))
+[0] <'t', 'r', 'i', '+', 'e', 'd'>
+
+>>> ins_k = rewrite(epsilon, 'k', after=(V * 'c'), before=('+' * V))
+>>> ins_k(letters('panic+ed'))
+[0] <'p', 'a', 'n', 'i', 'c', 'k', '+', 'e', 'd'>
+>>> ins_k(letters('panic+ing'))
+[0] <'p', 'a', 'n', 'i', 'c', 'k', '+', 'i', 'n', 'g'>
+>>> ins_k(letters('panic+s'))
+[0] <'p', 'a', 'n', 'i', 'c', '+', 's'>
+>>> ins_k(letters('arc+ing'))
+[0] <'a', 'r', 'c', '+', 'i', 'n', 'g'>
+
+>>> gem = rewrite('g', letters('gg'), after=V, before=('+' * V))
+>>> gem(letters('beg+ing'))
+[0] <'b', 'e', 'g', 'g', '+', 'i', 'n', 'g'>
+>>> gem(letters('beg+s'))
+[0] <'b', 'e', 'g', '+', 's'>
+>>> gem(letters('box+s'))
+[0] <'b', 'o', 'x', '+', 's'>
+
+>>> del_boundary = rewrite(at('+'), epsilon)
+>>> morph = del_e @ repl_y1 @ repl_y2 @ ins_k @ gem @ del_boundary
+>>> fst = lex @ morph
+>>> enum(fst, 100)
+[0] (<'b', 'e', 'g', 'V', 'pl'>, <'b', 'e', 'g'>)
+[1] (<'b', 'o', 'x', 'V', 'pl'>, <'b', 'o', 'x'>)
+[2] (<'t', 'r', 'y', 'V', 'pl'>, <'t', 'r', 'y'>)
+[3] (<'b', 'e', 'g', 'V', '3s'>, <'b', 'e', 'g', 's'>)
+[4] (<'b', 'o', 'x', 'V', '3s'>, <'b', 'o', 'x', 's'>)
+[5] (<'b', 'o', 'x', 'V', 'past'>, <'b', 'o', 'x', 'e', 'd'>)
+[6] (<'f', 'a', 'k', 'e', 'V', 'pl'>, <'f', 'a', 'k', 'e'>)
+[7] (<'t', 'r', 'y', 'V', '3s'>, <'t', 'r', 'i', 'e', 's'>)
+[8] (<'t', 'r', 'y', 'V', 'past'>, <'t', 'r', 'i', 'e', 'd'>)
+[9] (<'b', 'e', 'g', 'V', 'past'>, <'b', 'e', 'g', 'g', 'e', 'd'>)
+[10] (<'b', 'o', 'x', 'V', 'past', 'ptc'>, <'b', 'o', 'x', 'e', 'd'>)
+[11] (<'f', 'a', 'k', 'e', 'V', '3s'>, <'f', 'a', 'k', 'e', 's'>)
+[12] (<'f', 'a', 'k', 'e', 'V', 'past'>, <'f', 'a', 'k', 'e', 'd'>)
+[13] (<'t', 'r', 'y', 'V', 'past', 'ptc'>, <'t', 'r', 'i', 'e', 'd'>)
+[14] (<'b', 'e', 'g', 'V', 'past', 'ptc'>, <'b', 'e', 'g', 'g', 'e', 'd'>)
+[15] (<'b', 'o', 'x', 'V', 'pres', 'ptc'>, <'b', 'o', 'x', 'i', 'n', 'g'>)
+[16] (<'f', 'a', 'k', 'e', 'V', 'past', 'ptc'>, <'f', 'a', 'k', 'e', 'd'>)
+[17] (<'p', 'a', 'n', 'i', 'c', 'V', 'pl'>, <'p', 'a', 'n', 'i', 'c'>)
+[18] (<'t', 'r', 'y', 'V', 'pres', 'ptc'>, <'t', 'r', 'y', 'i', 'n', 'g'>)
+[19] (<'b', 'e', 'g', 'V', 'pres', 'ptc'>, <'b', 'e', 'g', 'g', 'i', 'n', 'g'>)
+[20] (<'f', 'a', 'k', 'e', 'V', 'pres', 'ptc'>, <'f', 'a', 'k', 'i', 'n', 'g'>)
+[21] (<'p', 'a', 'n', 'i', 'c', 'V', '3s'>, <'p', 'a', 'n', 'i', 'c', 's'>)
+[22] (<'p', 'a', 'n', 'i', 'c', 'V', 'past'>, <'p', 'a', 'n', 'i', 'c', 'k', 'e', 'd'>)
+[23] (<'p', 'a', 'n', 'i', 'c', 'V', 'past', 'ptc'>, <'p', 'a', 'n', 'i', 'c', 'k', 'e', 'd'>)
+[24] (<'p', 'a', 'n', 'i', 'c', 'V', 'pres', 'ptc'>, <'p', 'a', 'n', 'i', 'c', 'k', 'i', 'n', 'g'>)
+
+>>> fst.inv(letters('tries'))
+[0] <'t', 'r', 'y', 'V', '3s'>
+>>> fst.inv(letters('begging'))
+[0] <'b', 'e', 'g', 'V', 'pres', 'ptc'>
+>>> fst.inv(letters('faking'))
+[0] <'f', 'a', 'k', 'e', 'V', 'pres', 'ptc'>

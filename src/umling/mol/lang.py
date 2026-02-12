@@ -2,7 +2,17 @@
 import builtins, types
 from pyfoma import FST, State
 
-from .features import atoms, variables, ANY, NULL
+from .features import Value, atom, atoms, variables, ANY, NULL
+
+def _value_to_atom (v):
+    if len(v.atoms) == 0:
+        return EmptyLanguage()
+    elif len(v.atoms) == 1:
+        return Atom(v.atoms[0])
+    else:
+        raise Exception('Attempt to coerce an ambiguous Value to an Atom')
+
+Value.__tolanguage__ = _value_to_atom
 
 
 def words (s):
@@ -143,7 +153,7 @@ def _pyfoma_compiler_cleanup (fst):
     return fst.trim().epsilon_remove().push_weights().determinize_as_dfa().minimize_as_dfa().label_states_topology().cleanup_sigma()
 
 
-class RegLanguage (object):
+class RegLanguage:
 
     istransducer = None
     isfinite = None
@@ -259,7 +269,7 @@ class RegLanguage (object):
         raise ValueError(f'Cannot be coerced to a symbol: {self}')
 
 
-class Enum (object):
+class Enum:
 
     @staticmethod
     def seqlen (x):
@@ -823,7 +833,7 @@ def graph (x):
 
 class CoercionError (ValueError): pass
 
-class Coercion (object):
+class Coercion:
 
     coercions = {frozenset: [ ((builtins.set, list, tuple, types.GeneratorType), frozenset),
                               (object, lambda x: frozenset([x])) ],
@@ -863,7 +873,3 @@ edit = _fsa_builder.edit_fsa
 lg = LgFunction()
 anysym = Other('anysym')
 other = Other('other')
-
-# This causes atoms and variables to be treated as sub-modules
-from . import autosym
-__path__ = ['autosym::']

@@ -1,0 +1,234 @@
+
+>>> from mol import *
+
+##  Words and letters, vocab and alphabet
+
+>>> words('the red dog')
+('the', 'red', 'dog')
+
+>>> letters('dog')
+('d', 'o', 'g')
+
+>>> ('c', 'o', 'o', 'l')
+('c', 'o', 'o', 'l')
+>>> {'c', 'o', 'o', 'l'} == {'c', 'l', 'o'}
+True
+
+>>> len(('c', 'o', 'o', 'l'))
+4
+>>> len({'c', 'o', 'o', 'l'})
+3
+
+>>> (epsilon, emptyset)
+((), {})
+>>> letters('cat') + epsilon
+('c', 'a', 't')
+
+>>> len(epsilon)
+0
+
+>>> vocab('an orange cat') == {'an', 'cat', 'orange'}
+True
+>>> alphabet('cool') == {'c', 'l', 'o'}
+True
+
+>>> letters('cool')
+('c', 'o', 'o', 'l')
+
+##  Constructing regular languages
+
+>>> lg.epsilon
+/ε/
+>>> lg.emptyset
+/∅/
+>>> lg.a
+/a/
+
+>>> (lg.a | lg.b) + lg.c
+/(a | b)+c/
+>>> star(lg.a)
+/a*/
+
+>>> lg.a | lg.b | lg.c
+/(a | b) | c/
+
+>>> enum(lg.a | lg.b | lg.c)
+[0] ('a',)
+[1] ('b',)
+[2] ('c',)
+
+>>> enum(star(lg.a), 3)
+[0] ()
+[1] ('a',)
+[2] ('a', 'a')
+...
+
+##  Identities and annihilators
+
+>>> enum(lg.epsilon)
+[0] ()
+>>> A = (lg.a | lg.b) + lg.c
+>>> A + lg.epsilon == A
+True
+
+>>> enum(lg.emptyset)
+(empty)
+
+>>> A + lg.emptyset == lg.emptyset
+True
+
+##  Conversion to languages
+
+>>> lg({('the', 'dog'), ('the', 'cat')})
+/(the+cat) | (the+dog)/
+>>> lg('a')
+/a/
+>>> lg(letters('abc'))
+/a+b+c/
+>>> lg(alphabet('abc'))
+/a | b | c/
+
+>>> alphabet('bdg') + letters('at')
+Traceback (most recent call last):
+  File "<stdin>", line 1, in <module>
+TypeError: unsupported operand type(s) for +: 'set' and 'tuple'
+
+>>> lg(alphabet('bdg')) + letters('at')
+/(b | d | g)+(a+t)/
+>>> lg(alphabet('bdg')) + 'a'
+/(b | d | g)+a/
+>>> lg(alphabet('bdg')) + alphabet('ai')
+/(b | d | g)+(a | i)/
+>>> lg(letters('cat')) | letters('dog')
+/(c+a+t) | (d+o+g)/
+
+>>> concat(alphabet('bdg'), letters('at'))
+/(b | d | g)+(a+t)/
+
+>>> star('a')
+/a*/
+
+##  Variables
+
+>>> U = lg.a | lg.b
+>>> L = U + lg.c
+>>> L
+/(a | b)+c/
+
+>>> N = lg.dog | lg.cat
+>>> V = lg.saw | lg.chased
+>>> NP = lg.the + RC
+Traceback (most recent call last):
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/doctest.py", line 1368, in __run
+    exec(compile(example.source, filename, "single",
+  File "<doctest pymol-regex-tests.txt[19]>", line 1, in <module>
+    NP = lg.the + RC
+                    ^^
+NameError: name 'RC' is not defined
+
+##  EXTRAS
+
+>>> ('a', 'c') in L
+True
+>>> enum(L)
+[0] ('a', 'c')
+[1] ('b', 'c')
+
+>>> X = concat(alphabet('pt'), alphabet('ai'))
+>>> X
+/(p | t)+(a | i)/
+>>> enum(X)
+[0] ('p', 'a')
+[1] ('p', 'i')
+[2] ('t', 'a')
+[3] ('t', 'i')
+
+# >>> A = set(letters('cat'), letters('dog'))
+# >>> B = set(letters('s'), epsilon)
+# >>> enum(A * B)
+# [0] <'c', 'a', 't'>
+# [1] <'d', 'o', 'g'>
+# [2] <'c', 'a', 't', 's'>
+# [3] <'d', 'o', 'g', 's'>
+# >>> enum(A * set(epsilon))
+# [0] <'c', 'a', 't'>
+# [1] <'d', 'o', 'g'>
+# >>> enum(A * emptyset)
+# (empty)
+# 
+# # Concatenation of sets
+# 
+# >>> A = set(seq('p'), seq('t'))
+# >>> B = set(seq('a'), seq('i'))
+# >>> A * B
+# /(p + t)⋅(a + i)/
+# >>> enum(A * B)
+# [0] <'p', 'a'>
+# [1] <'p', 'i'>
+# [2] <'t', 'a'>
+# [3] <'t', 'i'>
+# >>> A = set(letters('cat'), letters('dog'))
+# >>> B = set(letters('s'), epsilon)
+# >>> enum(A * B)
+# [0] <'c', 'a', 't'>
+# [1] <'d', 'o', 'g'>
+# [2] <'c', 'a', 't', 's'>
+# [3] <'d', 'o', 'g', 's'>
+# >>> enum(A * set(epsilon))
+# [0] <'c', 'a', 't'>
+# [1] <'d', 'o', 'g'>
+# >>> enum(A * emptyset)
+# (empty)
+# >>> enum(alphabet('bdg') * letters('at'))
+# [0] <'b', 'a', 't'>
+# [1] <'d', 'a', 't'>
+# [2] <'g', 'a', 't'>
+# >>> enum(alphabet('bdg') * 'a')
+# [0] <'b', 'a'>
+# [1] <'d', 'a'>
+# [2] <'g', 'a'>
+# >>> enum(alphabet('bdg') * alphabet('ai'))
+# [0] <'b', 'a'>
+# [1] <'b', 'i'>
+# [2] <'d', 'a'>
+# [3] <'d', 'i'>
+# [4] <'g', 'a'>
+# [5] <'g', 'i'>
+# 
+# # Union of sequences
+# 
+# >>> letters('cat') + 'b'
+# /(c⋅a⋅t) + b/
+# >>> (letters('cat') + 'b') * 'c'
+# /((c⋅a⋅t) + b)⋅c/
+# 
+# 
+# # Kleene star
+# >>> star(lg('a'))
+# /a*/
+# >>> enum(star(lg('a')), 3)
+# [0] ε
+# [1] <'a'>
+# [2] <'a', 'a'>
+# ...
+# 
+# # FSAs
+# >>> E(1, 'a', 2)
+# >>> E(2, 'b', 2)
+# >>> F(2)
+# >>> fsa = make_fsa()
+# >>> show(fsa)
+# Initial: 1
+# Final: 2
+# Edges:
+#   1 'a' 2
+#   2 'b' 2
+# >>> enum(fsa, 3)
+# [0] <'a'>
+# [1] <'a', 'b'>
+# [2] <'a', 'b', 'b'>
+# ...
+# >>> seq('a', 'b', 'b') in fsa
+# True
+# >>> epsilon in fsa
+# False

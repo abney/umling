@@ -1,0 +1,6 @@
+
+>>> from umling.mol.atoms import a, b, c
+>>> a
+a
+>>> A = (a + b) * c
+>>> A

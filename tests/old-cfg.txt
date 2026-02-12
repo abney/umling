@@ -1,0 +1,96 @@
+
+>>> from mol import *
+
+# I            am   _1s
+# you,we,they  are  pl
+# he           is   sg
+#
+# I            run  n3s = _1s|pl
+# you,we,they  "
+# he           runs sg
+#
+# I            _1s
+# dog          sg
+# dogs         pl
+# you          pl
+# sheep        sg|pl
+
+>>> from mol.atoms import N, V, sg, pl, _1s
+>>> N
+N
+>>> from features.atoms import N as tmp
+>>> tmp is N
+True
+
+>>> n3s = _1s|pl
+>>> n3s
+_1s|pl
+
+>>> dog = N[sg]
+>>> dog
+N[sg]
+>>> type(dog)
+<class 'features.Category'>
+>>> dog[0]
+N
+>>> dog[1]
+sg
+
+>>> am = V[_1s]
+>>> are = V[pl]
+>>> _is = V[sg]
+>>> run = V[n3s]
+>>> runs = V[sg]
+
+>>> run
+V[_1s|pl]
+>>> are
+V[pl]
+
+>>> n3s & (sg|pl)
+pl
+
+>>> n3s & ANY
+_1s|pl
+>>> n3s & NULL
+NULL
+>>> n3s | ANY
+ANY
+>>> n3s | NULL
+_1s|pl
+
+>>> sheep = N[sg|pl]
+>>> sheep[1] & run[1]
+pl
+
+>>> from mol.variables import _n
+>>> type(_n)
+<class 'features.Variable'>
+
+
+
+# # Constant values
+# >>> (sg, pl) = at('sg', 'pl')
+# >>> from selkie.nlp.features import meet
+# >>> meet(sg, '*')
+# sg
+# 
+# # Category (type + features)
+# >>> NP[sg]
+# NP[sg]
+# 
+# >>> from pymol import _grammar_builder as G
+# >>> D = G.grammar.declarations
+# >>> Cats = D.categories
+# >>> 'S' in Cats
+# False
+# >>> Cats.define('S')
+# >>> ent = Cats['S']
+# >>> ent
+# <Entry S[]>
+# >>> ent.params
+# ()
+# 
+# >>> R(S, NP[n], VP[n])
+# S -> NP[n] VP[n]
+# 
