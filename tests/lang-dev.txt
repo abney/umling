@@ -35,10 +35,18 @@ True
 #  A Value is coercable to an Atom
 #
 
->>> A = a.__tolanguage__()
+>>> A = a.__to_language__()
 >>> type(A)
 <class 'umling.mol.lang.Atom'>
 >>> enum(A)
 [0] ('a',)
+>>> A = coerce(a, RegLanguage)
+>>> type(A)
+<class 'umling.mol.lang.Atom'>
 
-#>>> a * b
+#
+#  String
+#
+
+>>> a * b
+⟨a, b⟩

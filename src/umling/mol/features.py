@@ -40,7 +40,7 @@ def is_sorted (lst):
 class Value:
     
     # to avoid import circularity, this is set in lang.py
-    __tolanguage__ = None
+    __to_language__ = None
 
     top = None
     bottom = None
@@ -117,10 +117,10 @@ class Value:
         '''
         Coerce it to an Atom and then concatenate.
         '''
-        return self.__tolanguage__() * other
+        return self.__to_language__() * other
 
     def __rmul__ (self, other):
-        return other * self.__tolanguage__()
+        return other * self.__to_language__()
 
     ##  String representation.
 

@@ -12,7 +12,13 @@ def _value_to_atom (v):
     else:
         raise Exception('Attempt to coerce an ambiguous Value to an Atom')
 
-Value.__tolanguage__ = _value_to_atom
+Value.__to_language__ = _value_to_atom
+
+
+LANGLE = '\u27e8'
+RANGLE = '\u27e9'
+EPSILON = '\u03b5'
+EMPTYSET = '\u2205'
 
 
 def words (s):
@@ -249,6 +255,9 @@ class RegLanguage:
             return NotImplemented
 
     def __repr__ (self):
+        '''
+        When defining a subclass of RegLanguage, define __bare__, not __repr__.
+        '''
         s = self.__bare__()
         if s.startswith('(') and s.endswith(')'):
             s = s[1:-1]
@@ -319,6 +328,12 @@ class Atom (RegLanguage):
         RegLanguage.__init__(self)
         self.data = x
 
+    def __mul__ (self, other):
+        return String((self,)) * other
+
+    def __rmul__ (self, other):
+        return other * String((self,))
+
     def __fst__ (self):
         return FST(label=(_sym_to_pyfoma(self.data),))
 
@@ -341,7 +356,36 @@ class Atom (RegLanguage):
         return Category([self.data, *ftrs])
 
 
-class LgFunction (object):
+class String (RegLanguage):
+    '''
+    Created by concatenating Atoms or Strings.
+    '''
+    
+    def __init__ (self, items):
+        if not (isinstance(items, tuple) and all(isinstance(item, Atom) for item in items)):
+            raise Exception('Initializer for String must be tuple of Atoms')
+        RegLanguage.__init__(self)
+        self.data = items
+
+    def __mul__ (self, other):
+        other = coerce(other, RegLanguage)
+        if isinstance(other, String):
+            return String(self.data + other.data)
+        elif isinstance(other, Atom):
+            return String(self.data + (other,))
+        else:
+            return Concatenation((self, other))
+
+    def __rmul__ (self, other):
+        other = coerce(other, RegLanguage)
+        return other * self
+
+    def __repr__ (self):
+        words = [item.__bare__() for item in self.data]
+        return LANGLE + ', '.join(words) + RANGLE
+
+
+class LgFunction:
 
     def __getattr__ (self, name):
         if name == 'epsilon':
@@ -420,7 +464,7 @@ class EmptyLanguage (RegLanguage):
         return FST()
 
     def __bare__ (self):
-        return '\u2205'
+        return EMPTYSET
 
 
 def sym (x):
@@ -450,7 +494,7 @@ class Union (RegLanguage):
         elif len(self.args) == 1:
             return self.args[0].__bare__()
         else:
-            return '\u2205'
+            return EMPTYSET
 
 
 class CharRange (RegLanguage):
@@ -529,7 +573,7 @@ class Concatenation (RegLanguage):
         elif len(self.args) == 1:
             return self.args[0].__bare__()
         else:
-            return '\u03b5'
+            return EPSILON
 
     def to_sequence (self):
         return tuple(self._symbols())
@@ -651,7 +695,7 @@ def rewrite (x, y, after=None, before=None):
 
 #--  FSABuilder  ---------------------------------------------------------------
 
-class FSABuilder (object):
+class FSABuilder:
 
     def __init__ (self):
         self.fst = None
@@ -729,7 +773,8 @@ class FSA (RegLanguage):
 
     def __init__ (self, fst, istransducer):
         '''
-        The FSA will not call any destructive operations on fst, so it is fine to pass in an FST that you own.
+        The FSA will not call any destructive operations on fst, so it is fine to
+        pass in an FST that you own.
         '''
         if fst is None: raise Exception('No fst')
         RegLanguage.__init__(self)
@@ -839,6 +884,7 @@ class Coercion:
                               (object, lambda x: frozenset([x])) ],
                  Atom: [ ((str, int, float, tuple), Atom) ],
                  RegLanguage: [ (str, Atom),
+                                (Value, Value.__to_language__),
                                 ((tuple, list), lambda x: Concatenation(x)),
                                 ((set, frozenset), Union) ]
                  }                 
