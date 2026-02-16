@@ -382,7 +382,10 @@ class String (RegLanguage):
 
     def __repr__ (self):
         words = [item.__bare__() for item in self.data]
-        return LANGLE + ', '.join(words) + RANGLE
+        if words:
+            return LANGLE + ', '.join(words) + RANGLE
+        else:
+            return EPSILON
 
 
 class LgFunction:
@@ -908,8 +911,8 @@ __path__ = ['autosym::']
 #--  Globals  ------------------------------------------------------------------
 
 coerce = Coercion()
-epsilon = ()
-emptyset = {}
+epsilon = Concatenation([])
+emptyset = EmptyLanguage()
 _fsa_builder = FSABuilder()
 E = _fsa_builder.E
 F = _fsa_builder.F
