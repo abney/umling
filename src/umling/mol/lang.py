@@ -19,6 +19,7 @@ LANGLE = '\u27e8'
 RANGLE = '\u27e9'
 EPSILON = '\u03b5'
 EMPTYSET = '\u2205'
+CDOT = '\u2219'
 
 
 def words (s):
@@ -167,24 +168,23 @@ class RegLanguage:
     def __init__ (self):
         self._fst = None
 
+    def __fst__ (self):
+        '''
+        Builds a NEW fst representing this language, to be owned by the caller.
+        '''
+        return NotImplemented
+
     def fst (self):
         '''
-        We must be careful - the FST operations are destructive! Any user that
-        wants to call an operation on my fst should use __fst__(), not fst().
-        This function postprocesses the output of __fst__() the same way that the
-        PyFoma compiler does.
+        This returns an fst that belongs to this language. CAUTION: pyfoma
+        operations are destructive! Call __fst__() instead, if you want an fst
+        that you own.
         '''
         if self._fst is None:
             fst = self.__fst__()
             assert isinstance(fst, FST), f'Bad return from __fst__(): {repr(fst)}'
             self._fst = _pyfoma_compiler_cleanup(fst)
         return self._fst
-
-    def __fst__ (self):
-        '''
-        Create a NEW fst representing this language, to be owned by the caller.
-        '''
-        return NotImplemented
 
     def __eq__ (self, other):
         assert isinstance(other, RegLanguage), f'Not a RegLanguage: {other}'
@@ -223,7 +223,7 @@ class RegLanguage:
     def __hash__ (self):
         return hash(self.data)
 
-    def __or__ (self, other):
+    def __add__ (self, other):
         other = coerce(other, RegLanguage)
         return Union([self, other])
 
@@ -231,7 +231,7 @@ class RegLanguage:
         other = coerce(other, RegLanguage)
         return Difference([self, other])
 
-    def __add__ (self, other):
+    def __mul__ (self, other):
         other = coerce(other, RegLanguage)
         return Concatenation([self, other])
 
@@ -261,7 +261,7 @@ class RegLanguage:
         s = self.__bare__()
         if s.startswith('(') and s.endswith(')'):
             s = s[1:-1]
-        return '/' + s + '/'
+        return s
 
     def _show_fst (self):
         fst = self.fst()
@@ -328,11 +328,11 @@ class Atom (RegLanguage):
         RegLanguage.__init__(self)
         self.data = x
 
-    def __mul__ (self, other):
-        return String((self,)) * other
-
-    def __rmul__ (self, other):
-        return other * String((self,))
+#     def __mul__ (self, other):
+#         return Concatenation((self,)) * other
+# 
+#     def __rmul__ (self, other):
+#         return other * String((self,))
 
     def __fst__ (self):
         return FST(label=(_sym_to_pyfoma(self.data),))
@@ -356,36 +356,34 @@ class Atom (RegLanguage):
         return Category([self.data, *ftrs])
 
 
-class String (RegLanguage):
-    '''
-    Created by concatenating Atoms or Strings.
-    '''
-    
-    def __init__ (self, items):
-        if not (isinstance(items, tuple) and all(isinstance(item, Atom) for item in items)):
-            raise Exception('Initializer for String must be tuple of Atoms')
-        RegLanguage.__init__(self)
-        self.data = items
-
-    def __mul__ (self, other):
-        other = coerce(other, RegLanguage)
-        if isinstance(other, String):
-            return String(self.data + other.data)
-        elif isinstance(other, Atom):
-            return String(self.data + (other,))
-        else:
-            return Concatenation((self, other))
-
-    def __rmul__ (self, other):
-        other = coerce(other, RegLanguage)
-        return other * self
-
-    def __repr__ (self):
-        words = [item.__bare__() for item in self.data]
-        if words:
-            return LANGLE + ', '.join(words) + RANGLE
-        else:
-            return EPSILON
+# class String:
+#     '''
+#     Created by concatenating Atoms or Strings.
+#     '''
+#     
+#     def __init__ (self, items):
+#         if not (isinstance(items, tuple) and all(isinstance(item, Atom) for item in items)):
+#             raise Exception('Initializer for String must be tuple of Atoms')
+#         self.data = items
+# 
+#     def __mul__ (self, other):
+#         if isinstance(other, Atom):
+#             return String(self.data + (other,))
+#         elif isinstance(other, String):
+#             return String(self.data + other.data)
+#         else:
+#             return Concatenation((self, other))
+# 
+#     def __rmul__ (self, other):
+#         other = coerce(other, RegLanguage)
+#         return other * self
+# 
+#     def __bare__ (self):
+#         words = [item.__bare__() for item in self.data]
+#         if words:
+#             return LANGLE + ', '.join(words) + RANGLE
+#         else:
+#             return EPSILON
 
 
 class LgFunction:
@@ -461,7 +459,7 @@ class EmptyLanguage (RegLanguage):
 
     def __init__ (self):
         RegLanguage.__init__(self)
-        self.data = emptyset
+        self.data = set()
 
     def __fst__ (self):
         return FST()
@@ -572,7 +570,7 @@ class Concatenation (RegLanguage):
 
     def __bare__ (self):
         if len(self.args) > 1:
-            return '(' + '+'.join(arg.__bare__() for arg in self.args) + ')'
+            return '(' + CDOT.join(arg.__bare__() for arg in self.args) + ')'
         elif len(self.args) == 1:
             return self.args[0].__bare__()
         else:
@@ -785,6 +783,9 @@ class FSA (RegLanguage):
         self.istransducer = self.compute_istransducer() if istransducer is None else istransducer
 
     def __fst__ (self):
+        '''
+        This returns a copy, which now belongs to the caller.
+        '''
         return _copy_fst(self._fst)
 
     def compute_istransducer (self):
