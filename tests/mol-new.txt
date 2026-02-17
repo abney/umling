@@ -45,6 +45,17 @@ a
 a∙b
 >>> epsilon
 ε
+>>> len(a * b)
+2
+>>> len(epsilon)
+0
+>>> x = c * a
+>>> a * b * x * d
+a∙b∙c∙a∙d
+
+## 10.
+>>> letters('cool')
+
 >>> try:
 ...     (a,b) * (c,d)
 ... except Exception as e:
@@ -52,17 +63,11 @@ a∙b
 ...
 can't multiply sequence by non-int of type 'tuple'
 
->>> fst = (a*b).fst()
->>> list(fst)
 
 ## 10.
 >>> emptyset
 ∅
->>> len(a * b)
-2
->>> len({'c', 'o', 'o', 'l'})
-3
->>> len(epsilon)
-0
->>> len(emptyset)
-0
+>>> enum(emptyset)
+(empty)
+>>> enum(a * b)
+[0] ('a', 'b')

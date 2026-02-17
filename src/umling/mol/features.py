@@ -1,31 +1,8 @@
 
-# A Namespace is a dict that manages a set of named objects.
-# One accesses it with a name, and it always returns an object,
-# creating a new one if necessary.
-
-class Namespace (dict):
-
-    def __init__ (self, constructor, frozen=False):
-        dict.__init__(self)
-        self._constructor = constructor
-        self._frozen = frozen
-
-    def freeze (self):
-        self._frozen = True
-
-    def __getitem__ (self, key):
-        if key not in self:
-            if self._frozen:
-                raise Exception('Attempt to create a new symbol in a frozen Namespace')
-            self[key] = self._constructor(key)
-        return dict.__getitem__(self, key)
+from .foundations import Namespace, Atom
 
 
 #--  Value  --------------------------------------------------------------------
-
-def _newatom (x):
-    assert isinstance(x, str), f'Argument must be a string: {x}'
-    return Value([x])
 
 def atom (x):
     return atoms[x]
@@ -144,6 +121,9 @@ class Value:
             raise Exception(f'Illegal argument to []: {type(arg)} {arg}')
 
 
+Atom.to_unionable = lambda a: Value([a])
+
+
 class Category (tuple):
 
     def __repr__ (self):
@@ -161,8 +141,4 @@ class Variable (str):
 ANY = Value.top = Value([])
 NULL = Value.bottom = Value([])
 
-atoms = Namespace(_newatom)
 variables = Namespace(Variable)
-
-from . import autosym
-__path__ = ['autosym::']

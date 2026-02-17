@@ -5,18 +5,6 @@ from importlib.abc import MetaPathFinder, Loader
 from importlib.util import spec_from_loader
 
 
-class AutosymLoader (Loader):
-
-    def __init__ (self, table):
-        self.table = table
-
-    def create_module (self, spec):
-        return self.table
-
-    def exec_module (self, table):
-        pass
-
-
 class AutosymFinder (MetaPathFinder):
 
     def find_spec (self, fullname, path, target=None):
@@ -29,6 +17,18 @@ class AutosymFinder (MetaPathFinder):
                     table = parent.__dict__[child_name]
                     return spec_from_loader(fullname, AutosymLoader(PseudoModule(fullname, table)))
         return None
+
+
+class AutosymLoader (Loader):
+
+    def __init__ (self, table):
+        self.table = table
+
+    def create_module (self, spec):
+        return self.table
+
+    def exec_module (self, table):
+        pass
 
 
 class PseudoModule (object):

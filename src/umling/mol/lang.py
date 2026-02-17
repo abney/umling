@@ -2,25 +2,33 @@
 import builtins, types
 from pyfoma import FST, State
 
-from .features import Value, atom, atoms, variables, ANY, NULL
-
-def _value_to_atom (v):
-    if len(v.atoms) == 0:
-        return EmptyLanguage()
-    elif len(v.atoms) == 1:
-        return Atom(v.atoms[0])
-    else:
-        raise Exception('Attempt to coerce an ambiguous Value to an Atom')
-
-Value.__to_language__ = _value_to_atom
-
-
 LANGLE = '\u27e8'
 RANGLE = '\u27e9'
 EPSILON = '\u03b5'
 EMPTYSET = '\u2205'
 CDOT = '\u2219'
 
+
+#--  Atoms  --------------------------------------------------------------------
+
+from .foundations import Concatenable, Unionable, Symbol, symbols
+from .features import Value, variables, ANY, NULL
+
+Symbol.to_concatenable = lambda s: Concatenation([s])
+
+
+def _value_to_atom (v):
+    if len(v.atoms) == 0:
+        return EmptyLanguage()
+    elif len(v.atoms) == 1:
+        return Symbol(v.atoms[0])
+    else:
+        raise Exception('Attempt to coerce an ambiguous Value to a Symbol')
+
+Value.__to_language__ = _value_to_atom
+
+
+#--  Words, letters, vocab, alphabet  ------------------------------------------
 
 def words (s):
     assert isinstance(s, str), 'Input must be a quoted string'
@@ -55,7 +63,6 @@ def alphabet (*letters):
     return set(letters)
 
 
-
 #--  Pyfoma  -------------------------------------------------------------------
 
 def _sym_to_pyfoma (sym):
@@ -80,9 +87,6 @@ def _sym_from_pyfoma (sym):
 
 def _from_pyfoma (syms):
     return tuple(_sym_from_pyfoma(sym) for sym in syms if sym)
-
-
-#--  Regular expressions  ------------------------------------------------------
 
 def _fst_transitions (fst):
     for q in fst.states:
@@ -152,13 +156,40 @@ def _fsts_equal (fst1, fst2):
             return False
     return True
 
-
 def _pyfoma_compiler_cleanup (fst):
     '''
     This line was lifted from the PyFoma compiler (RegexParse.compile in pyfoma/private/regexparse.py).
     '''
     return fst.trim().epsilon_remove().push_weights().determinize_as_dfa().minimize_as_dfa().label_states_topology().cleanup_sigma()
 
+# Start with the sole state-sequence that might produce a string of length 0.
+# At each step, see if the last state is final. If so, output the state-sequence length minus one.
+# Otherwise, expand: get the state-sequences that produce one more word.
+# Do not create a state-sequence that contains a loop (the new state occurs already).
+# If we end up with no state-sequences, then the fsa produces no output: return -1.
+# The longest possible state-sequence will contain each state once.
+
+def _fst_length (fst):
+    '''
+    The length of the shortest sentence. The fst must be determinized and minimized.
+    '''
+    qqs = [[fst.initialstate]]
+    while qqs:
+        new_qqs = []
+        for qq in qqs:
+            q = qq[-1]
+            if q in fst.finalstates:
+                return len(qq) - 1
+            for transitions in q.transitions.values():
+                for t in transitions:
+                    dest = t.targetstate
+                    if dest not in qq:
+                        new_qqs.append(qq + [dest])
+        qqs = new_qqs
+    return -1
+
+
+#--  Regular expressions  ------------------------------------------------------
 
 class RegLanguage:
 
@@ -176,15 +207,20 @@ class RegLanguage:
 
     def fst (self):
         '''
-        This returns an fst that belongs to this language. CAUTION: pyfoma
+        This returns a pyfoma FST that belongs to this language. CAUTION: pyfoma
         operations are destructive! Call __fst__() instead, if you want an fst
         that you own.
+
+        The FST is determinized and minimized (as an FSA).
         '''
         if self._fst is None:
             fst = self.__fst__()
             assert isinstance(fst, FST), f'Bad return from __fst__(): {repr(fst)}'
             self._fst = _pyfoma_compiler_cleanup(fst)
         return self._fst
+
+    def __len__ (self):
+        return _fst_length(self.fst())
 
     def __eq__ (self, other):
         assert isinstance(other, RegLanguage), f'Not a RegLanguage: {other}'
@@ -317,45 +353,6 @@ def enum (x, n=10):
     return Enum(x, n)
 
 
-class Atom (RegLanguage):
-
-#    @staticmethod
-#    def _visible (c):
-#        tab = {' ': '\u2423', '\r': '\u240d', '\t': '\u2409', '\n': '\u2424'}
-#        return tab[c] if c in tab else c
-
-    def __init__ (self, x):
-        RegLanguage.__init__(self)
-        self.data = x
-
-#     def __mul__ (self, other):
-#         return Concatenation((self,)) * other
-# 
-#     def __rmul__ (self, other):
-#         return other * String((self,))
-
-    def __fst__ (self):
-        return FST(label=(_sym_to_pyfoma(self.data),))
-
-    def __bare__ (self):
-        if isinstance(self.data, str):
-            if not all(c.isalpha() for c in self.data):
-                return repr(self.data)
-            else:
-                return self.data
-        else:
-            return repr(self.data)
-
-    def to_symbol (self):
-        return self.data
-
-    def to_sequence (self):
-        return tuple([self.data])
-
-    def __getitem__ (self, *ftrs):
-        return Category([self.data, *ftrs])
-
-
 # class String:
 #     '''
 #     Created by concatenating Atoms or Strings.
@@ -394,7 +391,7 @@ class LgFunction:
         elif name == 'emptyset':
             return EmptyLanguage()
         else:
-            return Atom(name)
+            return Symbol(name)
 
     def __call__ (self, *args):
         if len(args) == 0:
@@ -469,10 +466,10 @@ class EmptyLanguage (RegLanguage):
 
 
 def sym (x):
-    if isinstance(x, Atom):
+    if isinstance(x, Symbol):
         return x
     else:
-        return Atom(x)
+        return Symbol(x)
 
 
 class Union (RegLanguage):
@@ -552,11 +549,22 @@ class Difference (RegLanguage):
             raise Exception('This cannot happen')
 
 
+def _elements (args):
+    for arg in args:
+        if isinstance(arg, Concatenation):
+            yield from _elements(arg.data)
+        elif isinstance(arg, (list, tuple)):
+            yield from _elements(arg)
+        else:
+            yield arg
+
+
 class Concatenation (RegLanguage):
 
     def __init__ (self, args):
         RegLanguage.__init__(self)
-        self.args = tuple(coerce(x, RegLanguage) for x in args)
+        self.data = tuple(coerce(x, RegLanguage) for x in args)
+        self.isstring = all(isinstance(arg, Symbol) for arg in self.args)
         self.istransducer = any(arg.istransducer for arg in self.args)
         self.isfinite = all(arg.isfinite for arg in self.args)
 
