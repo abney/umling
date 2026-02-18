@@ -36,7 +36,7 @@ False
 True
 
 ## 8.
->>> from umling.mol.atoms import a, b, c, d
+>>> from umling.mol.symbols import a, b, c, d
 >>> a
 a
 

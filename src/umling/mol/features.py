@@ -1,5 +1,5 @@
 
-from .foundations import Namespace, Atom
+from .foundations import Namespace, Symbol
 
 
 #--  Value  --------------------------------------------------------------------
@@ -121,7 +121,7 @@ class Value:
             raise Exception(f'Illegal argument to []: {type(arg)} {arg}')
 
 
-Atom.to_unionable = lambda a: Value([a])
+Symbol.to_unionable = lambda a: Value([a])
 
 
 class Category (tuple):
