@@ -1,6 +1,7 @@
 
 import builtins, types
 from pyfoma import FST, State
+from .namespace import Namespace
 
 LANGLE = '\u27e8'
 RANGLE = '\u27e9'
@@ -9,246 +10,30 @@ EMPTYSET = '\u2205'
 CDOT = '\u2219'
 
 
-#--  Language  --------------------------------------------------------------
-
-class Language:
-
-    issymbol = False
-    isstring = False
-    istransducer = None
-    isfinite = None
-
-    def __init__ (self):
-        self._fst = None
-
-    def __fst__ (self):
-        '''
-        Builds a NEW fst representing this language, to be owned by the caller.
-        '''
-        return NotImplemented
-
-    def fst (self):
-        '''
-        This returns a pyfoma FST that belongs to this language. CAUTION: pyfoma
-        operations are destructive! Call __fst__() instead, if you want an fst
-        that you own.
-
-        The FST is determinized and minimized (as an FSA).
-        '''
-        if self._fst is None:
-            fst = self.__fst__()
-            assert isinstance(fst, FST), f'Bad return from __fst__(): {repr(fst)}'
-            self._fst = _pyfoma_compiler_cleanup(fst)
-        return self._fst
-
-    def __len__ (self):
-        return _fst_length(self.fst())
-
-    def __eq__ (self, other):
-        assert isinstance(other, Language), f'Not a Language: {other}'
-        if self.istransducer:
-            if other.istransducer:
-                raise Exception('Cannot test equality of transducers')
-            else:
-                return False
-        elif other.istransducer:
-            return False
-        else:
-            return _fsts_equal(self.fst(), other.fst())
-
-    def __bool__ (self):
-        try:
-            next(self.__iter__())
-            return True
-        except StopIteration:
-            return False
-
-    def __iter__ (self):
-        return iter(FSA(self.fst(), self.istransducer))
-
-    def to_fsa (self):
-        return FSA(self.fst(), self.istransducer)
-
-    def __contains__ (self, x):
-        return self.to_fsa().__contains__(x)
-
-    def __call__ (self, x):
-        return self.to_fsa()(x)
-
-    def inv (self, x):
-        return self.to_fsa().inv(x)
-
-    def __hash__ (self):
-        return hash(self.data)
-
-    def __add__ (self, other):
-        other = coerce(other, Language)
-        return Union([self, other])
-
-    def __sub__ (self, other):
-        other = coerce(other, Language)
-        return Difference([self, other])
-
-    def __mul__ (self, other):
-        other = coerce(other, Language)
-        return Concatenation([self, other])
-
-    def __rmul__ (self, other):
-        other = coerce(other, Language)
-        return Concatenation([other, self])
-
-    def __matmul__ (self, other):
-        other = coerce(other, Language)
-        return Composition([self, other])
-
-    def __rmatmul__ (self, other):
-        other = coerce(other, Language)
-        return Composition([other, self])
-
-    # not used
-    def __set__ (self):
-        if self.isfinite:
-            return frozenset(iter(self))
-        else:
-            return NotImplemented
-
-    def __repr__ (self):
-        '''
-        When defining a subclass of Language, define __bare__, not __repr__.
-        '''
-        s = self.__bare__()
-        if s.startswith('(') and s.endswith(')'):
-            s = s[1:-1]
-        return s
-
-    def _show_fst (self):
-        fst = self.fst()
-        print('Initial:', fst.initialstate.name)
-        print('Final:', ' '.join(repr(q.name) for q in fst.finalstates))
-        print('Edges:')
-        for (q1, label, q2) in sorted(_fst_transitions(fst)):
-            print(' ', q1, label, q2)
-
-    def to_sequence (self):
-        raise ValueError(f'Cannot be coerced to a sequence: {self}')
-
-    def to_symbol (self):
-        raise ValueError(f'Cannot be coerced to a symbol: {self}')
-
-
-#--  Symbol  -------------------------------------------------------------------
-
-class Symbol (Language):
-
-    def __init__ (self, x):
-        self.data = x
-
-    def __fst__ (self):
-        return FST(label=(_sym_to_pyfoma(self.data),))
-
-    def __bare__ (self):
-        if isinstance(self.data, str):
-            if not all(c.isalpha() for c in self.data):
-                return repr(self.data)
-            else:
-                return self.data
-        else:
-            return repr(self.data)
-
-    def to_sequence (self):
-        return tuple([self.data])
-
-    def __getitem__ (self, *ftrs):
-        return Category([self.data, *ftrs])
-
-    def __repr__ (self):
-        return self.__bare__()
-
-
-# A Namespace is a dict that manages a set of named objects.
-# One accesses it with a name, and it always returns an object,
-# creating a new one if necessary.
-
-class Namespace (dict):
-
-    def __init__ (self, constructor, frozen=False):
-        dict.__init__(self)
-        self._constructor = constructor
-        self._frozen = frozen
-
-    def freeze (self):
-        self._frozen = True
-
-    def __getitem__ (self, key):
-        if key not in self:
-            if self._frozen:
-                raise Exception('Attempt to create a new symbol in a frozen Namespace')
-            self[key] = self._constructor(key)
-        return dict.__getitem__(self, key)
-
-
-symbols = Namespace(Symbol)
-
-
-#--  Atoms  --------------------------------------------------------------------
-
-from .features import Value, variables, ANY, NULL
-
-def _value_to_atom (v):
-    if len(v.atoms) == 0:
-        return EmptyLanguage()
-    elif len(v.atoms) == 1:
-        return Symbol(v.atoms[0])
-    else:
-        raise Exception('Attempt to coerce an ambiguous Value to a Symbol')
-
-Value.__to_language__ = _value_to_atom
-
-
-#--  Words, letters, vocab, alphabet  ------------------------------------------
-
-def words (s):
-    assert isinstance(s, str), 'Input must be a quoted string'
-    return tuple(s.split())
-
-def letters (s):
-    assert isinstance(s, str), 'Input must be a quoted string'
-    return tuple(s)
-
-def vocab (*words):
-    if len(words) == 1:
-        if isinstance(words[0], types.GeneratorType):
-            words = list(words[0])
-        elif isinstance(words[0], (tuple, list)):
-            words = words[0]
-        elif isinstance(words[0], str):
-            words = words[0].split()
-        else:
-            raise Exception(f'Expecting words, got {words[0]}')
-    assert all(isinstance(word, str) for word in words), 'Vocabulary elements must be quoted'
-    assert all(' ' not in word for word in words), 'Vocabulary elements cannot contain spaces'
-    return set(words)
-
-def alphabet (*letters):
-    if len(letters) == 1:
-        if isinstance(letters[0], types.GeneratorType):
-            letters = list(letters[0])
-        else:
-            letters = letters[0]
-    assert all(isinstance(letter, str) for letter in letters), 'Alphabet elements must be quoted'
-    assert all(len(letter) == 1 for letter in letters), 'Alphabet elements must be single letters'
-    return set(letters)
-
-
 #--  Pyfoma  -------------------------------------------------------------------
+
+def _to_input_tuple (x):
+    if isinstance(x, tuple):
+        return x
+    elif isinstance(x, list):
+        return tuple(x)
+    elif isinstance(x, Language):
+        return x.to_sequence()
+    else:
+        return tuple([x])
 
 def _sym_to_pyfoma (sym):
     if sym is other:
         return '.'
-    elif sym == '.':
-        return '<period>'
     elif sym is epsilon:
         return ''
+    elif isinstance(sym, Symbol):
+        assert isinstance(sym.data, str), f'Symbol does not contain string: {sym}'
+        sym = sym.data
+
+    assert isinstance(sym, str), f'Input is not a string: {sym}'
+    if sym == '.':
+        return '<period>'
     else:
         return sym
 
@@ -256,11 +41,11 @@ def _sym_from_pyfoma (sym):
     if sym == '.':
         return other
     elif sym == '<period>':
-        return '.'
+        return intern_symbol('.')
     elif not sym:
         return epsilon
     else:
-        return sym
+        return intern_symbol(sym)
 
 def _from_pyfoma (syms):
     return tuple(_sym_from_pyfoma(sym) for sym in syms if sym)
@@ -294,6 +79,11 @@ def _copy_fst (fst):
     out.finalstates = {statemap[id(q)] for q in fst.finalstates}
     out.alphabet = fst.alphabet.copy()
     return out
+
+def _fst_signature (fst):
+    return (fst.initialstate.name,
+            tuple(sorted(q.name for q in fst.finalstates)),
+            tuple(sorted(_fst_transitions(fst))))
 
 def _fsts_equal (fst1, fst2):
     if len(fst1.states) != len(fst2.states) or len(fst1.finalstates) != len(fst2.finalstates):
@@ -366,7 +156,260 @@ def _fst_length (fst):
     return -1
 
 
-class Enum:
+#--  Language  --------------------------------------------------------------
+
+class Language:
+
+    issymbol = False
+    isstring = False
+    istransducer = None
+    isfinite = None
+
+    precedence = None
+
+    def __init__ (self):
+        self._fst = None
+
+    def __fst__ (self):
+        '''
+        Builds a NEW fst representing this language, to be owned by the caller.
+        '''
+        return NotImplemented
+
+    def fst (self):
+        '''
+        This returns a pyfoma FST that belongs to this language. CAUTION: pyfoma
+        operations are destructive! Call __fst__() instead, if you want an fst
+        that you own.
+
+        The FST is determinized and minimized (as an FSA).
+        '''
+        if self._fst is None:
+            fst = self.__fst__()
+            assert isinstance(fst, FST), f'Bad return from __fst__(): {repr(fst)}'
+            self._fst = _pyfoma_compiler_cleanup(fst)
+        return self._fst
+
+    def to_fsa (self):
+        '''
+        This is the higher-level interface. The return value is a Language.
+        '''
+        return FSA(self.fst(), self.istransducer)
+
+    def __len__ (self):
+        return _fst_length(self.fst())
+
+    def __hash__ (self):
+        return hash(_fst_signature(self.fst()))
+
+    def __eq__ (self, other):
+        assert isinstance(other, Language), f'Not a Language: {other}'
+        return _fst_signature(self.fst()) == _fst_signature(other.fst())
+
+#     def __eq__ (self, other):
+#         assert isinstance(other, Language), f'Not a Language: {other}'
+#         if self.istransducer:
+#             if other.istransducer:
+#                 raise Exception('Cannot test equality of transducers')
+#             else:
+#                 return False
+#         elif other.istransducer:
+#             return False
+#         else:
+#             return _fsts_equal(self.fst(), other.fst())
+
+    def __bool__ (self):
+        try:
+            next(self.__iter__())
+            return True
+        except StopIteration:
+            return False
+
+    def __iter__ (self):
+        return iter(FSA(self.fst(), self.istransducer))
+
+    def __contains__ (self, x):
+        return self.to_fsa().__contains__(x)
+
+    def __call__ (self, x):
+        return self.to_fsa()(x)
+
+    def inv (self, x):
+        return self.to_fsa().inv(x)
+
+    def __add__ (self, other):
+        other = to_language(other)
+        return Union([self, other])
+
+    def __sub__ (self, other):
+        other = to_language(other)
+        return Difference([self, other])
+
+    def __mul__ (self, other):
+        other = to_language(other)
+        return Concatenation([self, other])
+
+    def __rmul__ (self, other):
+        other = to_language(other)
+        return Concatenation([other, self])
+
+    def __matmul__ (self, other):
+        other = to_language(other)
+        return Composition([self, other])
+
+    def __rmatmul__ (self, other):
+        other = to_language(other)
+        return Composition([other, self])
+
+#     # not used
+#     def __set__ (self):
+#         if self.isfinite:
+#             return frozenset(iter(self))
+#         else:
+#             return NotImplemented
+
+    def parenthesize (self, x):
+        '''
+        If x's operator has greater precedence than mine or if x's type
+        is the same as mine, then no parens are needed.
+        '''
+        if x.precedence is None or self.precedence is None:
+            raise Exception(f'Missing precedence! {repr(self), repr(x)}')
+        if x.precedence > self.precedence or type(x) == type(self):
+            return x.__bare__()
+        else:
+            return '(' + x.__bare__() + ')'
+
+    def to_sequence (self):
+        raise Exception(f'Cannot be converted to a sequence: {repr(self)}')
+
+    def to_symbol (self):
+        raise Exception(f'Cannot be converted to a symbol: {repr(self)}')
+
+    def __repr__ (self):
+        '''
+        When defining a subclass of Language, define __bare__, not __repr__.
+        '''
+        return self.__bare__()
+
+    def _show_fst (self):
+        fst = self.fst()
+        print('Initial:', fst.initialstate.name)
+        print('Final:', ' '.join(repr(q.name) for q in fst.finalstates))
+        print('Edges:')
+        for (q1, label, q2) in sorted(_fst_transitions(fst)):
+            print(' ', q1, label, q2)
+
+
+def to_language (x):
+    if isinstance(x, Language):
+        return x
+    elif isinstance(x, Value):
+        return Union(x.atoms)
+    elif isinstance(x, (tuple, list)):
+        return Concatenation(x)
+    elif isinstance(x, (set, frozenset)):
+        return Union(x)
+    else:
+        return Symbol(x)
+
+
+def L (*args):
+    if len(args) > 1:
+        return to_language(args)
+    elif len(args) == 0:
+        return empty
+    else:
+        return to_language(args[0])
+
+
+#--  Symbol  -------------------------------------------------------------------
+
+class Symbol (Language):
+
+    precedence = 0
+
+    def __init__ (self, x):
+        Language.__init__(self)
+        self.data = x
+
+    def __fst__ (self):
+        return FST(label=(_sym_to_pyfoma(self.data),))
+
+    def __bare__ (self):
+        if isinstance(self.data, str):
+            if not all(c.isalpha() for c in self.data):
+                return repr(self.data)
+            else:
+                return self.data
+        else:
+            return repr(self.data)
+
+    def to_symbol (self):
+        return self.data
+
+    def to_sequence (self):
+        return tuple([self.data])
+
+    def __getitem__ (self, *ftrs):
+        return Category([self.data, *ftrs])
+
+
+symbols = Namespace(Symbol)
+intern_symbol = symbols
+
+
+#--  Atoms  --------------------------------------------------------------------
+
+from .features import Value, variables, ANY, NULL
+
+def _value_to_atom (v):
+    if len(v.atoms) == 0:
+        return EmptyLanguage()
+    elif len(v.atoms) == 1:
+        return Symbol(v.atoms[0])
+    else:
+        raise Exception('Attempt to coerce an ambiguous Value to a Symbol')
+
+Value.__to_language__ = _value_to_atom
+
+
+#--  Words, letters, vocab, alphabet  ------------------------------------------
+
+def words (s):
+    assert isinstance(s, str), 'Input must be a quoted string'
+    return Concatenation(intern_symbol(x) for x in s.split())
+
+def letters (s):
+    assert isinstance(s, str), 'Input must be a quoted string'
+    return Concatenation(intern_symbol(x) for x in s)
+
+def vocab (*words):
+    if len(words) == 1:
+        if isinstance(words[0], types.GeneratorType):
+            words = list(words[0])
+        elif isinstance(words[0], (tuple, list)):
+            words = words[0]
+        elif isinstance(words[0], str):
+            words = words[0].split()
+        else:
+            raise Exception(f'Expecting words, got {words[0]}')
+    assert all(isinstance(word, str) for word in words), 'Vocabulary elements must be quoted'
+    assert all(' ' not in word for word in words), 'Vocabulary elements cannot contain spaces'
+    return set(intern_symbol(w) for w in words)
+
+def alphabet (*letters):
+    if len(letters) == 1:
+        if isinstance(letters[0], types.GeneratorType):
+            letters = list(letters[0])
+        else:
+            letters = letters[0]
+    assert all(isinstance(letter, str) for letter in letters), 'Alphabet elements must be quoted'
+    assert all(len(letter) == 1 for letter in letters), 'Alphabet elements must be single letters'
+    return set(intern_symbol(ltr) for ltr in letters)
+
+
+class Enumeration (Language):
 
     @staticmethod
     def seqlen (x):
@@ -376,6 +419,7 @@ class Enum:
             return len(x)
 
     def __init__ (self, x, n=10):
+        self.arg = x
         elts = []
         self.truncated = False
         for (i, elt) in enumerate(x):
@@ -398,11 +442,11 @@ class Enum:
         if s:
             return s
         else:
-            return '(empty)'
+            return '<empty enumeration>'
 
 
 def enum (x, n=10):
-    return Enum(x, n)
+    return Enumeration(x, n)
 
 
 # class String:
@@ -440,7 +484,7 @@ class LgFunction:
     def __getattr__ (self, name):
         if name == 'epsilon':
             return Concatenation([])
-        elif name == 'emptyset':
+        elif name == 'empty':
             return EmptyLanguage()
         else:
             return Symbol(name)
@@ -449,9 +493,9 @@ class LgFunction:
         if len(args) == 0:
             raise Exception('At least one argument must be provided')
         elif len(args) == 1:
-            return coerce(args[0], Language)
+            return to_language(args[0])
         else:
-            return [coerce(arg, Language) for arg in args]
+            return [to_language(arg) for arg in args]
 
 #         atoms = list(self._create_atoms(names))
 #         return atoms[0] if len(atoms) == 1 else atoms
@@ -466,7 +510,7 @@ class LgFunction:
 #     def _create_atom (self, name):
 #         if name == 'epsilon':
 #             return Concatenation([])
-#         elif name == 'emptyset':
+#         elif name == 'empty':
 #             return EmptyLanguage()
 #         else:
 #             return Atom(name)
@@ -482,6 +526,8 @@ def var (*names):
 
 class Other (Language):
 
+    precedence = 0
+
     def __init__ (self, name):
         Language.__init__(self)
         self.data = name
@@ -494,9 +540,6 @@ class Other (Language):
     def __bare__ (self):
         return self.data
 
-    def __repr__ (self):
-        return self.data
-
     def to_symbol (self):
         return self.data
 
@@ -505,6 +548,8 @@ class Other (Language):
 
 
 class EmptyLanguage (Language):
+
+    precedence = 0
 
     def __init__ (self):
         Language.__init__(self)
@@ -517,18 +562,22 @@ class EmptyLanguage (Language):
         return EMPTYSET
 
 
-def sym (x):
-    if isinstance(x, Symbol):
-        return x
-    else:
-        return Symbol(x)
+def _union_elements (args):
+    for arg in args:
+        arg = to_language(arg)
+        if isinstance(arg, Union):
+            yield from arg.args
+        else:
+            yield arg
 
 
 class Union (Language):
 
+    precedence = -4
+
     def __init__ (self, args):
         Language.__init__(self)
-        self.args = tuple(coerce(x, Language) for x in args)
+        self.args = tuple(to_language(x) for x in args)
         self.istransducer = any(arg.istransducer for arg in self.args)
         self.isfinite = all(arg.isfinite for arg in self.args)
         
@@ -540,14 +589,16 @@ class Union (Language):
         
     def __bare__ (self):
         if len(self.args) > 1:
-            return '(' + ' | '.join(sorted(arg.__bare__() for arg in self.args)) + ')'
+            return ' + '.join(sorted(self.parenthesize(arg) for arg in self.args))
         elif len(self.args) == 1:
-            return self.args[0].__bare__()
+            return list(self.args)[0].__bare__()
         else:
             return EMPTYSET
 
 
 class CharRange (Language):
+
+    precedence = 0
 
     def __init__ (self, c1, c2):
         Language.__init__(self)
@@ -579,10 +630,12 @@ def crange (c1, c2):
 
 class Difference (Language):
 
+    precedence = -4
+
     def __init__ (self, args):
         Language.__init__(self)
         assert len(args) > 0, 'Difference requires arguments'
-        self.args = tuple(coerce(x, Language) for x in args)
+        self.args = tuple(to_language(x) for x in args)
         self.istransducer = self.args[0].istransducer
         self.isfinite = self.args[0].isfinite
         
@@ -601,22 +654,27 @@ class Difference (Language):
             raise Exception('This cannot happen')
 
 
-def _elements (args):
-    for arg in args:
-        if isinstance(arg, Concatenation):
-            yield from _elements(arg.data)
-        elif isinstance(arg, (list, tuple)):
-            yield from _elements(arg)
-        else:
-            yield arg
+def is_string (x):
+    return isinstance(x, Concatenation) and x.isstring
+
+def string (x):
+    '''
+    Converts a Symbol or Concatenation to a tuple of Symbols.
+    '''
+    if isinstance(x, Symbol):
+        return tuple(x)
+    elif is_string(x):
+        return x.to_sequence()
 
 
 class Concatenation (Language):
 
+    precedence = -3
+
     def __init__ (self, args):
         Language.__init__(self)
-        self.data = tuple(coerce(x, Language) for x in args)
-        self.isstring = all(isinstance(arg, Symbol) for arg in self.args)
+        self.args = tuple(to_language(arg) for arg in args)
+        self.isstring = all(isinstance(arg, Symbol) or is_string(arg) for arg in self.args)
         self.istransducer = any(arg.istransducer for arg in self.args)
         self.isfinite = all(arg.isfinite for arg in self.args)
 
@@ -630,7 +688,7 @@ class Concatenation (Language):
 
     def __bare__ (self):
         if len(self.args) > 1:
-            return '(' + CDOT.join(arg.__bare__() for arg in self.args) + ')'
+            return CDOT.join(self.parenthesize(arg) for arg in self.args)
         elif len(self.args) == 1:
             return self.args[0].__bare__()
         else:
@@ -653,9 +711,11 @@ def concat (*args):
 
 class KleeneClosure (Language):
 
+    precedence = -2
+
     def __init__ (self, arg):
         Language.__init__(self)
-        self.arg = coerce(arg, Language)
+        self.arg = to_language(arg)
         self.istransducer = self.arg.istransducer
         self.isfinite = False
         
@@ -663,7 +723,7 @@ class KleeneClosure (Language):
         return self.arg.__fst__().kleene_closure()
         
     def __bare__ (self):
-        return self.arg.__bare__() + '*'
+        return self.parenthesize(self.arg) + '*'
 
 
 def star (x):
@@ -672,9 +732,11 @@ def star (x):
 
 class Optional (Language):
 
+    precedence = -2
+
     def __init__ (self, arg):
         Language.__init__(self)
-        self.arg = coerce(arg, Language)
+        self.arg = to_language(arg)
         self.transducer = self.arg.istransducer
         self.isfinite = self.arg.isfinite
 
@@ -691,9 +753,11 @@ def opt (x):
 
 class CrossProduct (Language):
 
+    precedence = -1
+
     def __init__ (self, args):
         Language.__init__(self)
-        self.args = tuple(coerce(x, Language) for x in args)
+        self.args = tuple(to_language(x) for x in args)
         self.istransducer = True
         self.isfinite = all(arg.isfinite for arg in self.args)
 
@@ -712,10 +776,12 @@ def io (x, y):
 
 class Composition (Language):
 
+    precedence = -15
+
     def __init__ (self, args):
         assert isinstance(args, (list, tuple)) and len(args) > 0, 'Composition requires at least one argument'
         Language.__init__(self)
-        self.args = tuple(coerce(x, Language) for x in args)
+        self.args = tuple(to_language(x) for x in args)
         self.istransducer = any(arg.istransducer for arg in self.args)
         self.isfinite = all(arg.isfinite for arg in self.args)
 
@@ -731,13 +797,15 @@ class Composition (Language):
 
 class RewriteRule (Language):
 
+    precedence = -13
+
     def __init__ (self, args):
         Language.__init__(self)
         assert isinstance(args, (list, tuple)) and len(args) == 3, 'Rewrite rule requires exactly three arguments'
         (xy, left, right) = args
-        xy = coerce(xy, Language)
-        left = Concatenation([]) if left is None else coerce(left, Language)
-        right = Concatenation([]) if right is None else coerce(right, Language)
+        xy = to_language(xy)
+        left = Concatenation([]) if left is None else to_language(left)
+        right = Concatenation([]) if right is None else to_language(right)
         self.args = (xy, left, right)
         self.istransducer = True
         self.isfinite = False
@@ -832,6 +900,8 @@ class FSABuilder:
 
 class FSA (Language):
 
+    precedence = 0
+
     def __init__ (self, fst, istransducer):
         '''
         The FSA will not call any destructive operations on fst, so it is fine to
@@ -890,7 +960,7 @@ class FSA (Language):
                 yield _from_pyfoma(pair[0] for pair in pairseq)
 
     def _call (self, x, invert=False):
-        x = coerce(x, tuple)
+        x = _to_input_tuple(x)
         fst = self._fst
         fst.tokenize_against_alphabet = lambda x: x
         insyms = [_sym_to_pyfoma(sym) for sym in x]
@@ -898,7 +968,7 @@ class FSA (Language):
         return (_from_pyfoma(y) for y in fnc(insyms, tokenize_outputs=True))
 
     def __call__ (self, x, invert=False):
-        return Enum(self._call(x, invert=invert))
+        return Enumeration(self._call(x, invert=invert))
 
     def inv (self, x):
         return self.__call__(x, invert=True)
@@ -919,9 +989,6 @@ class FSA (Language):
     def __bare__ (self):
         a = 'T' if self.istransducer else 'A'
         return f'(FS{a} with {len(self._fst.states)} states)'
-
-    def __repr__ (self):
-        return self.__bare__()
 
 
 def show (x):
@@ -947,7 +1014,7 @@ class Coercion:
     coercions = {frozenset: [ ((builtins.set, list, tuple, types.GeneratorType), frozenset),
                               (object, lambda x: frozenset([x])) ],
                  Symbol: [ ((str, int, float, tuple), Symbol) ],
-                 Language: [ (str, Atom),
+                 Language: [ (str,),
                                 (Value, Value.__to_language__),
                                 ((tuple, list), lambda x: Concatenation(x)),
                                 ((set, frozenset), Union) ]
@@ -973,7 +1040,7 @@ __path__ = ['autosym::']
 
 coerce = Coercion()
 epsilon = Concatenation([])
-emptyset = EmptyLanguage()
+empty = EmptyLanguage()
 _fsa_builder = FSABuilder()
 E = _fsa_builder.E
 F = _fsa_builder.F
@@ -983,3 +1050,4 @@ edit = _fsa_builder.edit_fsa
 lg = LgFunction()
 anysym = Other('anysym')
 other = Other('other')
+

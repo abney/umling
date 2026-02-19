@@ -15,10 +15,16 @@
 ('hi', 2, 'bye', 2)
 >>> ['hi', 2, 'bye', 2]
 ['hi', 2, 'bye', 2]
+>>> len(['hi', 2, 'bye', 2])
+4
 
 ## 5.
 >>> {'hi', 2, 'bye', 2} == {2, 'bye', 'hi'}
 True
+>>> len({'hi', 2, 'bye', 2})
+3
+>>> len(set())
+0
 
 ## 6.
 >>> x = 42
@@ -39,6 +45,11 @@ True
 >>> from umling.mol.symbols import a, b, c, d
 >>> a
 a
+>>> from umling.mol.symbols import c, l, o, orange, an, cat
+>>> alphabet('cool') == {c, l, o}
+True
+>>> vocab('an orange cat') == {orange, an, cat}
+True
 
 ## 9.
 >>> a * b
@@ -49,13 +60,12 @@ a∙b
 2
 >>> len(epsilon)
 0
->>> x = c * a
->>> a * b * x * d
-a∙b∙c∙a∙d
-
-## 10.
 >>> letters('cool')
+c∙o∙o∙l
+>>> words('an orange cat')
+an∙orange∙cat
 
+## 9. extra
 >>> try:
 ...     (a,b) * (c,d)
 ... except Exception as e:
@@ -63,11 +73,77 @@ a∙b∙c∙a∙d
 ...
 can't multiply sequence by non-int of type 'tuple'
 
-
 ## 10.
->>> emptyset
+>>> x = c * c
+>>> a * x * b
+a∙c∙c∙b
+
+## 11.
+>>> a * b * epsilon
+a∙b∙ε
+>>> a * b * epsilon == a * b
+True
+>>> a * b == b * a
+False
+>>>
+string(a * b * epsilon)
+(a, b)
+
+## 12.
+>>> a * b + a * c
+a∙b + a∙c
+>>> empty
 ∅
->>> enum(emptyset)
-(empty)
->>> enum(a * b)
-[0] ('a', 'b')
+>>> set(a * b + a * c) == {(a, c), (a, b)}
+True
+>>> set(empty)
+set()
+
+## 13.
+>>> try:
+...     (a, b) * (c, d)
+... except Exception as e:
+...     print(e)
+...
+can't multiply sequence by non-int of type 'tuple'
+>>> a * b * (c, d)
+a∙b∙c∙d
+>>> {a, b} * c
+(a + b)∙c
+>>> try:
+...     {a, b} * (c, d)
+... except Exception as e:
+...     print(e)
+...
+can't multiply sequence by non-int of type 'set'
+>>> L(a, b) * (c, d)
+a∙b∙c∙d
+>>> L({a, b}) * (c, d)
+(a + b)∙c∙d
+
+## 14.
+>>> star(a + b)
+(a + b)*
+
+## 15.
+>>> enum((a + b) * c)
+[0] (a, c)
+[1] (b, c)
+>>> enum(epsilon)
+[0] ()
+>>> enum(empty)
+<empty enumeration>
+>>> enum(star(a), 3)
+[0] ()
+[1] (a,)
+[2] (a, a)
+...
+
+## 16.
+>>> set((a + b + c) - (c + d)) == {(a,), (b,)}
+True
+>>> a in a + b + c
+True
+>>> a * c in (a + b) * c
+True
+

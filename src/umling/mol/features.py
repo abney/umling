@@ -1,5 +1,5 @@
 
-from .foundations import Namespace, Symbol
+from .namespace import Namespace
 
 
 #--  Value  --------------------------------------------------------------------
@@ -119,9 +119,6 @@ class Value:
             return Category((self,) + arg)
         else:
             raise Exception(f'Illegal argument to []: {type(arg)} {arg}')
-
-
-Symbol.to_unionable = lambda a: Value([a])
 
 
 class Category (tuple):
