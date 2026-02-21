@@ -94,6 +94,12 @@ string(a * b * epsilon)
 a∙b + a∙c
 >>> empty
 ∅
+>>> A = (a + b) * c
+>>> A + empty == A
+True
+>>> A * empty == empty
+True
+
 >>> set(a * b + a * c) == {(a, c), (a, b)}
 True
 >>> set(empty)
@@ -103,9 +109,9 @@ set()
 >>> try:
 ...     (a, b) * (c, d)
 ... except Exception as e:
-...     print(e)
+...     print(e.__class__.__name__, e)
 ...
-can't multiply sequence by non-int of type 'tuple'
+TypeError can't multiply sequence by non-int of type 'tuple'
 >>> a * b * (c, d)
 a∙b∙c∙d
 >>> {a, b} * c
@@ -113,9 +119,9 @@ a∙b∙c∙d
 >>> try:
 ...     {a, b} * (c, d)
 ... except Exception as e:
-...     print(e)
+...     print(e.__class__.__name__, e)
 ...
-can't multiply sequence by non-int of type 'set'
+TypeError can't multiply sequence by non-int of type 'set'
 >>> L(a, b) * (c, d)
 a∙b∙c∙d
 >>> L({a, b}) * (c, d)
@@ -147,3 +153,18 @@ True
 >>> a * c in (a + b) * c
 True
 
+## 17.
+>>> U = a + b
+>>> L = U * c
+>>> L
+(a + b)∙c
+>>> from umling.mol.symbols import dog, cat, saw, chased, the, that
+>>> N = dog + cat
+>>> V = saw + chased
+>>> try:
+...     NP = the * RC
+...
+... except Exception as e:
+...     print(e.__class__.__name__, e)
+...
+NameError name 'RC' is not defined

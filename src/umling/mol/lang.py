@@ -23,7 +23,7 @@ def _to_input_tuple (x):
         return tuple([x])
 
 def _sym_to_pyfoma (sym):
-    if sym is other:
+    if sym is wild:
         return '.'
     elif sym is epsilon:
         return ''
@@ -38,8 +38,12 @@ def _sym_to_pyfoma (sym):
         return sym
 
 def _sym_from_pyfoma (sym):
-    if sym == '.':
-        return other
+    if isinstance(sym, Symbol):
+        return sym
+    elif not isinstance(sym, str):
+        raise Exception(f'Expecting a string: {repr(sym)}')
+    elif sym == '.':
+        return wild
     elif sym == '<period>':
         return intern_symbol('.')
     elif not sym:
@@ -60,6 +64,24 @@ def _fst_transitions (fst):
                 else:
                     label = ':'.join(repr(sym if sym else epsilon) for sym in trans.label)
                 yield (q.name, label, trans.targetstate.name)
+
+def _fst_str_lines (fst):
+    if fst.initialstate.name != 1:
+        yield f'*** Unexpected initial state {fst.initialstate.name}'
+    for q in sorted(fst.states, key=lambda q:q.name):
+        for (label, transitions) in sorted(q.transitions.items()):
+            for trans in transitions:
+                if len(trans.label) == 1:
+                    insym = trans.label[0]
+                    label = repr(_sym_from_pyfoma(insym))
+                else:
+                    label = ':'.join(repr(_sym_from_pyfoma(sym)) for sym in trans.label)
+                yield f'E({q.name}, {label}, {trans.targetstate.name})'
+        if q in fst.finalstates:
+            yield f'F({q.name})'
+
+def _fst_str (fst):
+    return '\n'.join(_fst_str_lines(fst))
 
 def _copy_fst (fst):
     out = FST()
@@ -292,14 +314,6 @@ class Language:
         '''
         return self.__bare__()
 
-    def _show_fst (self):
-        fst = self.fst()
-        print('Initial:', fst.initialstate.name)
-        print('Final:', ' '.join(repr(q.name) for q in fst.finalstates))
-        print('Edges:')
-        for (q1, label, q2) in sorted(_fst_transitions(fst)):
-            print(' ', q1, label, q2)
-
 
 def to_language (x):
     if isinstance(x, Language):
@@ -431,6 +445,18 @@ class Enumeration (Language):
         elts.sort(key=self.seqlen)
         self.elts = elts
 
+    def __bool__ (self):
+        return bool(self.elts)
+
+    def __getitem__ (self, i):
+        return self.elts[i]
+
+    def __len__ (self):
+        return len(self.elts)
+
+    def __iter__ (self):
+        return iter(self.elts)
+
     def _words (self):
         for (i, elt) in enumerate(self.elts):
             yield(f'[{i}] {elt}')
@@ -524,7 +550,7 @@ def var (*names):
         return [Variable(name) for name in names]
 
 
-class Other (Language):
+class Wild (Language):
 
     precedence = 0
 
@@ -851,20 +877,16 @@ class FSABuilder:
                 if trans.targetstate == q2:
                     return trans
 
-    @staticmethod
-    def _de_epsilon (sym):
-        return '' if sym == epsilon else sym
-
     def E (self, *args):
         if len(args) == 2:
             (q1, q2) = args
             label = ('',)
         elif len(args) == 3:
             (q1, insym, q2) = args
-            label = (self._de_epsilon(insym),)
+            label = (_sym_to_pyfoma(insym),)
         elif len(args) == 4:
             (q1, insym, outsym, q2) = args
-            label = (self._de_epsilon(insym), self._de_epsilon(outsym))
+            label = (_sym_to_pyfoma(insym), _sym_to_pyfoma(outsym))
             self.istransducer = True
         else:
             raise Exception('Too many arguments to E')
@@ -968,7 +990,8 @@ class FSA (Language):
         return (_from_pyfoma(y) for y in fnc(insyms, tokenize_outputs=True))
 
     def __call__ (self, x, invert=False):
-        return Enumeration(self._call(x, invert=invert))
+        out = Enumeration(self._call(x, invert=invert))
+        return out if self.istransducer else bool(out)
 
     def inv (self, x):
         return self.__call__(x, invert=True)
@@ -980,9 +1003,6 @@ class FSA (Language):
         except StopIteration:
             return False
 
-    def __show__ (self):
-        self._show_fst()
-
     def __graph__ (self):
         return self._fst.view()
 
@@ -990,12 +1010,9 @@ class FSA (Language):
         a = 'T' if self.istransducer else 'A'
         return f'(FS{a} with {len(self._fst.states)} states)'
 
+    def __str__ (self):
+        return _fst_str(self.fst())
 
-def show (x):
-    if hasattr(x, '__show__'):
-        x.__show__()
-    else:
-        print(x)
 
 def graph (x):
     if hasattr(x, '__graph__'):
@@ -1044,10 +1061,9 @@ empty = EmptyLanguage()
 _fsa_builder = FSABuilder()
 E = _fsa_builder.E
 F = _fsa_builder.F
-make_fsa = _fsa_builder.make_fsa
+done = _fsa_builder.make_fsa
 erase_fsa = _fsa_builder.erase_fsa
 edit = _fsa_builder.edit_fsa
 lg = LgFunction()
-anysym = Other('anysym')
-other = Other('other')
+wild = Wild('wild')
 

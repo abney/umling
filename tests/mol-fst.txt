@@ -1,0 +1,28 @@
+
+## 1.
+>>> from umling.mol import *
+>>> from umling.mol.symbols import a, b
+>>> E(1, a, 2)
+>>> E(2, b, 2)
+>>> F(2)
+>>> fsa = done()
+
+## 2.
+>>> print(fsa)
+E(1, a, 2)
+E(2, b, 2)
+F(2)
+>>> enum(fsa, 3)
+[0] (a,)
+[1] (a, b)
+[2] (a, b, b)
+...
+>>> a * b * b in fsa
+True
+>>> epsilon in fsa
+False
+>>> fsa(a * b)
+True
+
+## 3.
+>>> a:b
