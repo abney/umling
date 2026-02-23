@@ -351,6 +351,14 @@ def L (*args):
 
 #--  Symbol  -------------------------------------------------------------------
 
+def is_identifier (x):
+    return (
+        len(x) > 0 and
+        (x[0].isalpha() or x[0] == '_') and
+        all(c.isalnum() or c == '_' for c in x[1:])
+    )
+
+
 class Symbol (Language):
 
     precedence = 0
@@ -383,7 +391,7 @@ class Symbol (Language):
 
     def __bare__ (self):
         if isinstance(self.data, str):
-            if not all(c.isalpha() for c in self.data):
+            if not is_identifier(self.data):
                 return repr(self.data)
             else:
                 return self.data
