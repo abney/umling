@@ -10,7 +10,7 @@ name = "umling"
 #     src/umling/__init__.py
 #     docs/conf.py
 
-version = "0.2.dev1"
+version = "0.2"
 
 authors = [
   { name="Steven Abney", email="abney@umich.edu" },
