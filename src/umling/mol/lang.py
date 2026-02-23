@@ -1207,3 +1207,4 @@ lg = LgFunction()
 other = Other()
 rewrite = RewriteRule
 invert = Inversion
+union = Union
