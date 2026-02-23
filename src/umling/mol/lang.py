@@ -8,6 +8,9 @@ RANGLE = '\u27e9'
 EPSILON = '\u03b5'
 EMPTYSET = '\u2205'
 CDOT = '\u2219'
+RIGHTARROW = '\u2192'
+SUPMINUS = '\u207b'
+SUPONE = '\u00b9'
 
 
 #--  Pyfoma  -------------------------------------------------------------------
@@ -23,7 +26,7 @@ def _to_input_tuple (x):
         return tuple([x])
 
 def _sym_to_pyfoma (sym):
-    if sym is wild:
+    if sym is other:
         return '.'
     elif sym is epsilon:
         return ''
@@ -43,7 +46,7 @@ def _sym_from_pyfoma (sym):
     elif not isinstance(sym, str):
         raise Exception(f'Expecting a string: {repr(sym)}')
     elif sym == '.':
-        return wild
+        return other
     elif sym == '<period>':
         return intern_symbol('.')
     elif not sym:
@@ -74,9 +77,10 @@ def _fst_str_lines (fst):
                 if len(trans.label) == 1:
                     insym = trans.label[0]
                     label = repr(_sym_from_pyfoma(insym))
-                else:
-                    label = ':'.join(repr(_sym_from_pyfoma(sym)) for sym in trans.label)
-                yield f'E({q.name}, {label}, {trans.targetstate.name})'
+                    yield f'E({q.name}, {label}, {trans.targetstate.name})'
+                elif len(trans.label) == 2:
+                    (i, o) = [repr(_sym_from_pyfoma(sym)) for sym in trans.label]
+                    yield f'E({q.name}, {i}, {o}, {trans.targetstate.name})'
         if q in fst.finalstates:
             yield f'F({q.name})'
 
@@ -275,6 +279,14 @@ class Language:
         other = to_language(other)
         return Concatenation([other, self])
 
+    def __truediv__ (self, other):
+        other = to_language(other)
+        return CrossProduct([self, other])
+
+    def __rtruediv__ (self, other):
+        other = to_language(other)
+        return CrossProduct([other, self])
+
     def __matmul__ (self, other):
         other = to_language(other)
         return Composition([self, other])
@@ -346,6 +358,25 @@ class Symbol (Language):
     def __init__ (self, x):
         Language.__init__(self)
         self.data = x
+
+    def __hash__ (self):
+        return hash(self.data)
+
+    def __eq__ (self, other):
+        if isinstance(other, Symbol):
+            return self.data == other.data
+        elif isinstance(other, str):
+            return self.data == other
+        else:
+            return False
+
+    def __lt__ (self, other):
+        if isinstance(other, Symbol):
+            return self.data < other.data
+        elif isinstance(other, str):
+            return self.data < other
+        else:
+            raise Exception(f'Cannot compare Symbol and {type(other)}')
 
     def __fst__ (self):
         return FST(label=(_sym_to_pyfoma(self.data),))
@@ -423,7 +454,24 @@ def alphabet (*letters):
     return set(intern_symbol(ltr) for ltr in letters)
 
 
+class IterableCall:
+
+    def __init__ (self, f, *args, **kwargs):
+        self.f = f
+        self.args = args
+        self.kwargs = kwargs
+
+    def __iter__ (self):
+        return iter(self.f(*self.args, **self.kwargs))
+
+
 class Enumeration (Language):
+    '''
+    The argument to an Enumeration must be an iterable, not an iteration.
+    That is, it is not simply a function that uses yield, but rather an
+    object that provides an __iter__ method. A Language is suitable, as is
+    an IterableCall.
+    '''
 
     @staticmethod
     def seqlen (x):
@@ -434,34 +482,54 @@ class Enumeration (Language):
 
     def __init__ (self, x, n=10):
         self.arg = x
-        elts = []
-        self.truncated = False
-        for (i, elt) in enumerate(x):
-            if i >= n:
-                self.truncated = True
-                break
-            elts.append(elt)
-        elts.sort(key=repr)
-        elts.sort(key=self.seqlen)
-        self.elts = elts
-
+        self.truncate_at = n
+        
     def __bool__ (self):
-        return bool(self.elts)
+        g = iter(self.arg)
+        try:
+            next(g)
+            return True
+        except StopIteration:
+            return False
 
-    def __getitem__ (self, i):
-        return self.elts[i]
+    def __getitem__ (self, tgt):
+        if tgt < 0:
+            n = -tgt
+            lst = []
+            ptr = 0
+            for item in self.arg:
+                if len(lst) < n:
+                    lst.append(item)
+                    ptr += 1
+                else:
+                    if ptr >= n:
+                        ptr = 0
+                    lst[ptr] = item
+                    ptr += 1
+            if len(lst) < n:
+                raise IndexError('List index out of range')
+            return lst[ptr-1]
+        else:
+            for (i, elt) in enumerate(self.arg):
+                if i == tgt:
+                    return elt
 
     def __len__ (self):
-        return len(self.elts)
+        n = 0
+        for _ in self.arg:
+            n += 1
+        return n
 
     def __iter__ (self):
-        return iter(self.elts)
+        return iter(self.arg)
 
     def _words (self):
-        for (i, elt) in enumerate(self.elts):
-            yield(f'[{i}] {elt}')
-        if self.truncated:
-            yield '...'
+        for (i, elt) in enumerate(self.arg):
+            if i >= self.truncate_at:
+                yield '...'
+                break
+            else:
+                yield(f'[{i}] {elt}')
 
     def __repr__ (self):
         s = '\n'.join(self._words())
@@ -469,6 +537,45 @@ class Enumeration (Language):
             return s
         else:
             return '<empty enumeration>'
+
+
+#     def __init__ (self, x, n=10):
+#         self.arg = x
+#         elts = []
+#         self.truncated = False
+#         for (i, elt) in enumerate(x):
+#             if i >= n:
+#                 self.truncated = True
+#                 break
+#             elts.append(elt)
+#         elts.sort(key=repr)
+#         elts.sort(key=self.seqlen)
+#         self.elts = elts
+#
+#     def __bool__ (self):
+#         return bool(self.elts)
+# 
+#     def __getitem__ (self, i):
+#         return self.elts[i]
+# 
+#     def __len__ (self):
+#         return len(self.elts)
+# 
+#     def __iter__ (self):
+#         return iter(self.elts)
+# 
+#     def _words (self):
+#         for (i, elt) in enumerate(self.elts):
+#             yield(f'[{i}] {elt}')
+#         if self.truncated:
+#             yield '...'
+# 
+#     def __repr__ (self):
+#         s = '\n'.join(self._words())
+#         if s:
+#             return s
+#         else:
+#             return '<empty enumeration>'
 
 
 def enum (x, n=10):
@@ -550,13 +657,12 @@ def var (*names):
         return [Variable(name) for name in names]
 
 
-class Wild (Language):
+class Other (Language):
 
     precedence = 0
 
-    def __init__ (self, name):
+    def __init__ (self):
         Language.__init__(self)
-        self.data = name
         self.istransducer = False
         self.isfinite = True
 
@@ -564,13 +670,13 @@ class Wild (Language):
         return FST(label=('.',))
 
     def __bare__ (self):
-        return self.data
+        return 'other'
 
     def to_symbol (self):
-        return self.data
+        return self
 
     def to_sequence (self):
-        return tuple([self.data])
+        return tuple([self])
 
 
 class EmptyLanguage (Language):
@@ -628,8 +734,8 @@ class CharRange (Language):
 
     def __init__ (self, c1, c2):
         Language.__init__(self)
-        i = ord(c1)
-        j = ord(c2)+1
+        i = ord(str(c1))
+        j = ord(str(c2))+1
         if j <= i: (i, j) = (j, i)
         self.i = i
         self.j = j
@@ -673,7 +779,7 @@ class Difference (Language):
         
     def __bare__ (self):
         if len(self.args) > 1:
-            return '(' + ' - '.join(arg.__bare__() for arg in self.args) + ')'
+            return ' - '.join(self.parenthesize(arg) for arg in self.args)
         elif len(self.args) == 1:
             return self.args[0].__bare__()
         else:
@@ -755,6 +861,9 @@ class KleeneClosure (Language):
 def star (x):
     return KleeneClosure(x)
 
+def repeat (x):
+    return Concatenation([x, KleeneClosure(x)])
+
 
 class Optional (Language):
 
@@ -793,7 +902,7 @@ class CrossProduct (Language):
         return self.args[0].__fst__().cross_product(self.args[1].__fst__())
 
     def __bare__ (self):
-        return '(' + self.args[0].__bare__() + ':' + self.args[1].__bare__() + ')'
+        return self.parenthesize(self.args[0]) + ':' + self.parenthesize(self.args[1])
 
 
 def io (x, y):
@@ -825,27 +934,27 @@ class RewriteRule (Language):
 
     precedence = -13
 
-    def __init__ (self, args):
+    def __init__ (self, x, y, after=None, before=None):
         Language.__init__(self)
-        assert isinstance(args, (list, tuple)) and len(args) == 3, 'Rewrite rule requires exactly three arguments'
-        (xy, left, right) = args
-        xy = to_language(xy)
-        left = Concatenation([]) if left is None else to_language(left)
-        right = Concatenation([]) if right is None else to_language(right)
-        self.args = (xy, left, right)
+        self.x = to_language(x)
+        self.y = to_language(y)
+        self.after = Concatenation([]) if after is None else to_language(after)
+        self.before = Concatenation([]) if before is None else to_language(before)
         self.istransducer = True
         self.isfinite = False
 
     def __fst__ (self):
-        (fst, left, right) = (arg.__fst__() for arg in self.args)
+        fst = io(self.x, self.y).fst()
+        left = self.after.fst()
+        right = self.before.fst()
         return fst.rewrite((left, right))
 
     def __bare__ (self):
-        return '(' + ' '.join([self.args[0].__bare__(), '/', self.args[1].__bare__(), '_', self.args[2].__bare__()]) + ')'
-
-
-def rewrite (x, y, after=None, before=None):
-    return RewriteRule([io(x, y), after, before])
+        x = self.parenthesize(self.x)
+        y = self.parenthesize(self.y)
+        left = self.parenthesize(self.after)
+        right = self.parenthesize(self.before)
+        return f'{x} {RIGHTARROW} {y} / {left} _ {right}'
 
 
 #--  FSABuilder  ---------------------------------------------------------------
@@ -990,7 +1099,7 @@ class FSA (Language):
         return (_from_pyfoma(y) for y in fnc(insyms, tokenize_outputs=True))
 
     def __call__ (self, x, invert=False):
-        out = Enumeration(self._call(x, invert=invert))
+        out = Enumeration(IterableCall(self._call, x, invert=invert))
         return out if self.istransducer else bool(out)
 
     def inv (self, x):
@@ -1008,10 +1117,40 @@ class FSA (Language):
 
     def __bare__ (self):
         a = 'T' if self.istransducer else 'A'
-        return f'(FS{a} with {len(self._fst.states)} states)'
+        return f'<FS{a} with {len(self._fst.states)} states>'
 
     def __str__ (self):
-        return _fst_str(self.fst())
+        s = _fst_str(self.fst())
+        if s:
+            return s
+        else:
+            return '<empty fsa>'
+
+
+class Inversion (Language):
+
+    precedence = -2
+
+    def __init__ (self, arg):
+        self.arg = to_language(arg)
+
+    def __fst__ (self):
+        if isinstance(self.arg, Inversion):
+            return self.arg.arg.__fst__()
+        else:
+            return self.arg.__fst__().inv()
+
+    def __call__ (self, x, invert=False):
+        if isinstance(self.arg, Inversion):
+            return self.arg.arg.__call__(x, invert=invert)
+        elif isinstance(self.arg, FSA):
+            return self.arg.__call__(x, invert=not invert)
+        else:
+            fsa = self.arg.to_fsa()
+            return fsa.__call__(x, invert=not invert)
+
+    def __bare__ (self):
+        return self.parenthesize(self.arg) + SUPMINUS + SUPONE
 
 
 def graph (x):
@@ -1065,5 +1204,6 @@ done = _fsa_builder.make_fsa
 erase_fsa = _fsa_builder.erase_fsa
 edit = _fsa_builder.edit_fsa
 lg = LgFunction()
-wild = Wild('wild')
-
+other = Other()
+rewrite = RewriteRule
+invert = Inversion

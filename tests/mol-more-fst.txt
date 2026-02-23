@@ -1,0 +1,168 @@
+
+# This is updated from pymol-fst-tests.txt
+
+>>> from umling.mol import *
+>>> from umling.mol.symbols import a, b, c, x, y
+
+>>> E(1, a, x, 2)
+>>> F(2)
+>>> fst = done()
+>>> enum(fst)
+[0] ((a,), (x,))
+>>> print(fst)
+E(1, a, x, 2)
+F(2)
+>>> fst(a)
+[0] (x,)
+
+>>> edit(fst)
+>>> E(1, a, y, 2)
+>>> fst = done()
+>>> fst(a)
+[0] (x,)
+[1] (y,)
+>>> enum(fst)
+[0] ((a,), (x,))
+[1] ((a,), (y,))
+
+>>> edit(fst)
+>>> E(2, 1)
+>>> fst = done()
+>>> fst((a, a))
+[0] (x, x)
+[1] (x, y)
+[2] (y, x)
+[3] (y, y)
+>>> enum(fst, 4)
+[0] ((a,), (x,))
+[1] ((a,), (y,))
+[2] ((a, a), (x, x))
+[3] ((a, a), (x, y))
+...
+
+>>> E(1, epsilon, 2)
+>>> F(2)
+>>> fsa = done()
+>>> fsa.istransducer
+False
+>>> enum(fsa)
+[0] ()
+
+>>> fsa = done()
+>>> print(fsa)
+<empty fsa>
+>>> enum(fsa)
+<empty enumeration>
+
+>>> E(1, a, 1)
+>>> E(1, b, 1)
+>>> E(1, '[', 1)
+>>> E(1, ']', 1)
+>>> E(1, '[a]', 1)
+>>> F(1)
+>>> fsa = done()
+>>> fsa('[a]')
+True
+
+>>> enum(b * a * b)
+[0] (b, a, b)
+>>> enum(b * opt(a) * b)
+[0] (b, b)
+[1] (b, a, b)
+
+>>> crange(a, c)
+[a-c]
+>>> enum(crange(a, c))
+[0] (a,)
+[1] (b,)
+[2] (c,)
+
+>>> from umling.mol.symbols import z, e, i, o, u
+>>> C = crange(a, z) - (a + e + i + o + u)
+>>> C
+[a-z] - (a + e + i + o + u)
+>>> enum(C)
+[0] (b,)
+[1] (c,)
+[2] (d,)
+[3] (f,)
+[4] (g,)
+[5] (h,)
+[6] (j,)
+[7] (k,)
+[8] (l,)
+[9] (m,)
+...
+
+>>> other
+other
+>>> enum(other)
+[0] (other,)
+
+>>> enum(a * other * b)
+[0] (a, other, b)
+[1] (a, a, b)
+[2] (a, b, b)
+
+>>> enum(a * star(other) * b, 5)
+[0] (a, b)
+[1] (a, other, b)
+[2] (a, a, b)
+[3] (a, b, b)
+[4] (a, other, other, b)
+...
+
+>>> E(1, a, x, 2)
+>>> E(1, a, y, 2)
+>>> E(2, epsilon, 1)
+>>> E(1, epsilon, z, 1)
+>>> F(2)
+>>> fst = done()
+>>> enum(fst)
+[0] ((a,), (x,))
+[1] ((a,), (y,))
+[2] ((a,), (z, x))
+[3] ((a,), (z, y))
+[4] ((a, a), (x, x))
+[5] ((a, a), (x, y))
+[6] ((a, a), (y, x))
+[7] ((a, a), (y, y))
+[8] ((a,), (z, z, x))
+[9] ((a,), (z, z, y))
+...
+
+>>> fst = io(letters('cat'), letters('gato'))
+>>> fst
+(c∙a∙t):(g∙a∙t∙o)
+>>> enum(fst)
+[0] ((c, a, t), (g, a, t, o))
+
+>>> V = alphabet('aeiou')
+>>> C = crange('a', 'z') - V
+>>> enum(C)
+[0] (b,)
+[1] (c,)
+[2] (d,)
+[3] (f,)
+[4] (g,)
+[5] (h,)
+[6] (j,)
+[7] (k,)
+[8] (l,)
+[9] (m,)
+...
+>>> syll = star(C) * V * opt(V) * star(C)
+>>> syll(letters('ba'))
+True
+>>> syll(letters('bc'))
+False
+>>> word = syll * star(io(epsilon, '-') * syll)
+>>> word(letters('baba'))
+[0] (b, a, b, '-', a)
+[1] (b, a, '-', b, a)
+
+>>> enum(letters('dog') * '[pl]')
+[0] (d, o, g, '[pl]')
+
+>>> enum(io(a, b) @ io(b, c))
+[0] ((a,), (c,))

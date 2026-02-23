@@ -130,6 +130,8 @@ a∙b∙c∙d
 ## 14.
 >>> star(a + b)
 (a + b)*
+>>> repeat(a + b)
+(a + b)∙(a + b)*
 
 ## 15.
 >>> enum((a + b) * c)

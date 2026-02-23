@@ -1,7 +1,7 @@
 
 ## 1.
 >>> from umling.mol import *
->>> from umling.mol.symbols import a, b
+>>> from umling.mol.symbols import a, b, c, d
 >>> E(1, a, 2)
 >>> E(2, b, 2)
 >>> F(2)
@@ -25,4 +25,84 @@ False
 True
 
 ## 3.
->>> a:b
+>>> io(a,b)
+a:b
+>>> R = io(a,epsilon) * star(io(a,b))
+>>> R(a * a * a)
+[0] (b, b)
+>>> R([a, a, a])
+[0] (b, b)
+>>> R2 = io(a * b * c, c * (a + b))
+>>> R2
+(a∙b∙c):(c∙(a + b))
+>>> sorted(R2(a * b * c))
+[(c, a), (c, b)]
+
+## 4.
+>>> E(1, a, 1)
+>>> E(1, b, 1)
+>>> E(1, a, epsilon, 2)
+>>> E(2, b, epsilon, 3)
+>>> F(3)
+>>> T = done()
+>>> enum(T, 3)
+[0] ((a, b), ())
+[1] ((a, a, b), (a,))
+[2] ((b, a, b), (b,))
+...
+
+## 5.
+>>> T2 = T @ star(io(a,c) + io(b,d))
+>>> T2
+(<FST with 3 states>@(a:c + b:d)*)
+>>> T2([a, a, b, a, b])
+[0] (c, c, d)
+>>> T3 = T2 * io(epsilon, a)
+>>> T3([a, a, b, a, b])
+[0] (c, c, d, a)
+
+## 6.
+>>> from umling.mol.symbols import (
+...     cat, tease, dog, s,
+...     k, ae, t, i, z, d, o, g
+... )
+...
+>>> lex1 = (
+...     io(cat, k*ae*t) +
+...     io(tease, t*i*z) +
+...     io(dog, d*o*g) +
+...     io(s,z)
+... )
+...
+>>> lex1(dog)
+[0] (d, o, g)
+>>> lex = repeat(lex1)
+>>> lex([cat, s, tease, dog, s])
+[0] (k, ae, t, z, t, i, z, d, o, g, z)
+
+## 7.
+>>> E(1, t, 2)
+>>> E(1, z, 1)
+>>> E(1, s, 1)
+>>> E(1, other, 1)
+>>> F(1)
+>>> E(2, t, 2)
+>>> E(2, z, s, 1)
+>>> E(2, s, 1)
+>>> E(2, other, 1)
+>>> F(2)
+>>> z_to_s = done()
+>>> T = lex @ z_to_s
+>>> T([cat, s, tease, dog, s])
+[0] (k, ae, t, s, t, i, z, d, o, g, z)
+
+## 8.
+>>> rule = rewrite(z, s, after=t)
+>>> rule
+z → s / t _ ε
+>>> T2 = lex @ rule
+>>> T2([cat, s, tease, dog, s])
+[0] (k, ae, t, s, t, i, z, d, o, g, z)
+>>> invert(T2)([k, ae, t, s, t, i, z, d, o, g, z])
+[0] (cat, s, tease, dog, s)
+
