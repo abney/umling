@@ -85,8 +85,7 @@ a∙b∙ε
 True
 >>> a * b == b * a
 False
->>>
-string(a * b * epsilon)
+>>> string(a * b * epsilon)
 (a, b)
 
 ## 12.

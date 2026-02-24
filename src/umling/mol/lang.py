@@ -399,7 +399,7 @@ class Symbol (Language):
             return repr(self.data)
 
     def to_symbol (self):
-        return self.data
+        return self
 
     def to_sequence (self):
         return tuple([self.data])
