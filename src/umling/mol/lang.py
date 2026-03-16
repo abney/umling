@@ -2,6 +2,7 @@
 import builtins, types
 from pyfoma import FST, State
 from .namespace import Namespace
+from .features import Category
 
 LANGLE = '\u27e8'
 RANGLE = '\u27e9'
@@ -295,6 +296,10 @@ class Language:
         other = to_language(other)
         return Composition([other, self])
 
+    def __and__ (self, other):
+        other = to_language(other)
+        return Intersection([other, self])
+
 #     # not used
 #     def __set__ (self):
 #         if self.isfinite:
@@ -366,6 +371,8 @@ class Symbol (Language):
     def __init__ (self, x):
         Language.__init__(self)
         self.data = x
+        self.istransducer = False
+        self.isfinite = True
 
     def __hash__ (self):
         return hash(self.data)
@@ -405,7 +412,7 @@ class Symbol (Language):
         return tuple([self.data])
 
     def __getitem__ (self, *ftrs):
-        return Category([self.data, *ftrs])
+        return Category([self, *ftrs])
 
 
 symbols = Namespace(Symbol)
@@ -713,7 +720,7 @@ def _union_elements (args):
 
 class Union (Language):
 
-    precedence = -4
+    precedence = -5
 
     def __init__ (self, args):
         Language.__init__(self)
@@ -734,6 +741,31 @@ class Union (Language):
             return list(self.args)[0].__bare__()
         else:
             return EMPTYSET
+
+
+class Intersection (Language):
+
+    precedence = -4
+
+    def __init__ (self, args):
+        Language.__init__(self)
+        self.args = tuple(to_language(x) for x in args)
+        self.istransducer = any(arg.istransducer for arg in self.args)
+        self.isfinite = all(arg.isfinite for arg in self.args)
+
+    def __fst__ (self):
+        fst = self.args[0].__fst__()
+        for x in self.args[1:]:
+            fst = fst.intersection(x.__fst__())
+        return fst
+
+    def __bare__ (self):
+        if len(self.args) > 1:
+            return ' & '.join(sorted(self.parenthesize(arg) for arg in self.args))
+        elif len(self.args) == 1:
+            return self.args[0].__bare__()
+        else:
+            return '1'
 
 
 class CharRange (Language):
@@ -770,7 +802,7 @@ def crange (c1, c2):
 
 class Difference (Language):
 
-    precedence = -4
+    precedence = -5
 
     def __init__ (self, args):
         Language.__init__(self)

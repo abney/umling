@@ -1,0 +1,61 @@
+
+>>> from umling.mol import *
+>>> from umling.mol.symbols import N, V, sg, pl, isg
+>>> not3s = pl + isg
+>>> not3s
+isg + pl
+>>> ftrs = not3s & isg
+>>> type(ftrs)
+<class 'umling.mol.lang.Intersection'>
+>>> ftrs.args
+(isg, isg + pl)
+>>> subftrs = ftrs.args[1]
+>>> type(subftrs)
+<class 'umling.mol.lang.Union'>
+>>> subftrs.args
+(pl, isg)
+>>> subftrs.isfinite
+True
+>>> sym1 = subftrs.args[0]
+>>> type(sym1)
+<class 'umling.mol.lang.Symbol'>
+>>> sym1.isfinite
+True
+>>> ftrs
+(isg + pl) & isg
+>>> ftrs.isfinite
+True
+>>> lst = enum(ftrs)
+>>> lst
+[0] (isg,)
+>>> len(lst)
+1
+>>> lst[0]
+(isg,)
+>>> len(lst[0])
+1
+
+>>> dog = N[sg]
+>>> type(dog)
+<class 'umling.mol.features.Category'>
+>>> type(dog[0])
+<class 'umling.mol.lang.Symbol'>
+>>> dog
+N[sg]
+>>> dog[1]
+sg
+
+>>> am_pos = V[isg]
+>>> are_pos = V[pl]
+>>> is_pos = V[sg]
+>>> run_pos = V[not3s]
+>>> runs_pos = V[sg]
+
+>>> run_pos
+V[isg + pl]
+>>> are_pos
+V[pl]
+
+>>> bool(not3s & (sg + pl))
+True
+
