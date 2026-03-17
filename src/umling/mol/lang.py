@@ -2,7 +2,6 @@
 import builtins, types
 from pyfoma import FST, State
 from .namespace import Namespace
-from .features import Category
 
 LANGLE = '\u27e8'
 RANGLE = '\u27e9'
@@ -12,6 +11,7 @@ CDOT = '\u2219'
 RIGHTARROW = '\u2192'
 SUPMINUS = '\u207b'
 SUPONE = '\u00b9'
+UNIVERSAL = 'U'
 
 
 #--  Pyfoma  -------------------------------------------------------------------
@@ -419,9 +419,7 @@ symbols = Namespace(Symbol)
 intern_symbol = symbols
 
 
-#--  Atoms  --------------------------------------------------------------------
-
-from .features import Value, variables, ANY, NULL
+#--  Value  --------------------------------------------------------------------
 
 def _value_to_atom (v):
     if len(v.atoms) == 0:
@@ -431,7 +429,167 @@ def _value_to_atom (v):
     else:
         raise Exception('Attempt to coerce an ambiguous Value to a Symbol')
 
-Value.__to_language__ = _value_to_atom
+
+class Value (Language):
+    
+    precedence = 0
+
+    # set at the bottom of this file
+
+    top = None
+    bottom = None
+
+    # when doing import from values, atoms is a string
+    # otherwise, the atoms need to be in sort order
+
+    def __init__ (self, atoms):
+        Language.__init__(self)
+        if not isinstance(atoms, (list, tuple)):
+            atoms = [atoms]
+        self.atoms = tuple(sorted(intern_symbol(x) for x in atoms))
+
+    def __or__ (self, other):
+        if self is self.top or other is self.top:
+            return self.top
+        elif self is self.bottom:
+            return other
+        elif other is self.bottom:
+            return self
+        else:
+            atoms1 = self.atoms
+            atoms2 = other.atoms
+            union = []
+            i = 0
+            j = 0
+            while i < len(atoms1) and j < len(atoms2):
+                if atoms1[i] < atoms2[j]:
+                    union.append(atoms1[i])
+                    i += 1
+                elif atoms1[i] > atoms2[j]:
+                    union.append(atoms2[j])
+                    j += 1
+                else:
+                    union.append(atoms1[i])
+                    i += 1
+                    j += 1
+            # at most one will apply
+            if i < len(atoms1): union.extend(atoms1[i:])
+            if j < len(atoms2): union.extend(atoms2[j:])
+            return Value(union)
+
+    def __and__ (self, other):
+        if self is self.bottom or other is self.bottom:
+            return self.bottom
+        elif self is self.top:
+            return other
+        elif other is self.top:
+            return self
+        else:
+            atoms1 = self.atoms
+            atoms2 = other.atoms
+            inter = []
+            i = 0
+            j = 0
+            while i < len(atoms1) and j < len(atoms2):
+                if atoms1[i] < atoms2[j]:
+                    i += 1
+                elif atoms1[i] > atoms2[j]:
+                    j += 1
+                elif atoms1[i] == atoms2[j]:
+                    inter.append(atoms1[i])
+                    i += 1
+                    j += 1
+                else:
+                    raise Exception(f'Non-comparable atoms: {atoms1[i]} {atoms2[j]}')
+            if inter:
+                return Value(inter)
+            else:
+                return self.bottom
+
+    def __mul__ (self, other):
+        '''
+        Coerce it to an Atom and then concatenate.
+        '''
+        return self.__to_language__() * other
+
+    def __rmul__ (self, other):
+        return other * self.__to_language__()
+
+    ##  String representation.
+
+    def __bare__ (self):
+        return '+'.join(self.atoms)
+
+    ##  Create a category, using this value as syncat
+
+    def __getitem__ (self, arg):
+        # Order matters - Value is a specialization of tuple
+        if isinstance(arg, Value):
+            return Category((self, arg))
+        elif isinstance(arg, tuple):
+            return Category((self,) + arg)
+        else:
+            raise Exception(f'Illegal argument to []: {type(arg)} {arg}')
+
+
+class EmptyLanguage (Value):
+
+    precedence = 0
+
+    def __init__ (self):
+        Value.__init__(self, [])
+
+    def __fst__ (self):
+        return FST()
+
+    def __bare__ (self):
+        return EMPTYSET
+
+
+class UniversalSet (Value):
+
+    precedence = 0
+
+    def __init__ (self):
+        Language.__init__(self)
+        self.args = None
+        self.istransducer = False
+        self.isfinite = False
+
+    def __and__ (self, other):
+        other = to_language(other)
+        return other
+
+    def __add__ (self, other):
+        return self
+
+    def __bare__ (self):
+        return UNIVERSAL
+
+
+def atom (x):
+    return atoms[x]
+
+def is_sorted (lst):
+    for i in range(len(lst)-1):
+        if lst[i] >= lst[i+1]:
+            return False
+    return True
+
+
+class Category (tuple):
+
+    def __repr__ (self):
+        t = self[0]
+        args = self[1:]
+        return repr(t) + '[' + ', '.join(repr(arg) for arg in args) + ']'
+
+
+class Variable (str):
+    pass
+
+
+variables = Namespace(Variable)
 
 
 #--  Words, letters, vocab, alphabet  ------------------------------------------
@@ -692,21 +850,6 @@ class Other (Language):
 
     def to_sequence (self):
         return tuple([self])
-
-
-class EmptyLanguage (Language):
-
-    precedence = 0
-
-    def __init__ (self):
-        Language.__init__(self)
-        self.data = set()
-
-    def __fst__ (self):
-        return FST()
-
-    def __bare__ (self):
-        return EMPTYSET
 
 
 def _union_elements (args):
@@ -1211,7 +1354,6 @@ class Coercion:
                               (object, lambda x: frozenset([x])) ],
                  Symbol: [ ((str, int, float, tuple), Symbol) ],
                  Language: [ (str,),
-                                (Value, Value.__to_language__),
                                 ((tuple, list), lambda x: Concatenation(x)),
                                 ((set, frozenset), Union) ]
                  }                 
@@ -1248,3 +1390,6 @@ other = Other()
 rewrite = RewriteRule
 invert = Inversion
 union = Union
+U = UniversalSet()
+Value.top = U
+Value.bottom = empty

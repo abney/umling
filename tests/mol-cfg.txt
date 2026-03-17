@@ -37,7 +37,7 @@ True
 
 >>> dog = N[sg]
 >>> type(dog)
-<class 'umling.mol.features.Category'>
+<class 'umling.mol.lang.Category'>
 >>> type(dog[0])
 <class 'umling.mol.lang.Symbol'>
 >>> dog
@@ -59,3 +59,8 @@ V[pl]
 >>> bool(not3s & (sg + pl))
 True
 
+>>> U
+U
+>>> sg & U
+U & sg
+>>> sg & U == sg
