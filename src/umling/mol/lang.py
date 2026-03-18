@@ -585,6 +585,11 @@ def is_sorted (lst):
 
 class Category (tuple):
 
+    def __and__ (self, other):
+        if isinstance(other, Category):
+            if self[0] != other[0]:
+                
+
     def __repr__ (self):
         t = self[0]
         args = self[1:]

@@ -86,3 +86,8 @@ True
 <empty enumeration>
 >>> empty & sg == empty
 True
+
+## Sheep run
+
+>>> sheep_pos = N[sg+pl]
+>>> sheep_pos & run_pos
