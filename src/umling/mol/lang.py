@@ -556,6 +556,12 @@ class UniversalSet (Value):
         self.istransducer = False
         self.isfinite = False
 
+    def __fst__ (self):
+        fsa = FSABuilder()
+        fsa.E(1, other, 2)
+        fsa.F(2)
+        return fsa.done()._fst
+
     def __and__ (self, other):
         other = to_language(other)
         return other
@@ -1196,7 +1202,7 @@ class FSABuilder:
             q.finalweight = 0.
             self.fst.finalstates.add(q)
 
-    def make_fsa (self):
+    def done (self):
         self._require_fsa() # create an empty one if none exists
         fsa = FSA(self.fst, self.istransducer)
         self.erase_fsa()
@@ -1382,7 +1388,7 @@ empty = EmptyLanguage()
 _fsa_builder = FSABuilder()
 E = _fsa_builder.E
 F = _fsa_builder.F
-done = _fsa_builder.make_fsa
+done = _fsa_builder.done
 erase_fsa = _fsa_builder.erase_fsa
 edit = _fsa_builder.edit_fsa
 lg = LgFunction()

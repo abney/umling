@@ -1,4 +1,6 @@
 
+## Value
+
 >>> from umling.mol import *
 >>> from umling.mol.symbols import N, V, sg, pl, isg
 >>> not3s = pl + isg
@@ -35,6 +37,8 @@ True
 >>> len(lst[0])
 1
 
+## Category
+
 >>> dog = N[sg]
 >>> type(dog)
 <class 'umling.mol.lang.Category'>
@@ -59,8 +63,26 @@ V[pl]
 >>> bool(not3s & (sg + pl))
 True
 
+## U
+
 >>> U
 U
+>>> U(sg)
+True
 >>> sg & U
 U & sg
 >>> sg & U == sg
+True
+>>> enum(sg & U)
+[0] (sg,)
+
+## empty
+
+>>> empty
+∅
+>>> empty & sg
+∅
+>>> enum(sg & empty)
+<empty enumeration>
+>>> empty & sg == empty
+True
