@@ -5,37 +5,21 @@
 >>> from umling.mol.symbols import N, V, sg, pl, isg
 >>> not3s = pl + isg
 >>> not3s
-isg + pl
->>> ftrs = not3s & isg
->>> type(ftrs)
-<class 'umling.mol.lang.Intersection'>
->>> ftrs.args
-(isg, isg + pl)
->>> subftrs = ftrs.args[1]
->>> type(subftrs)
-<class 'umling.mol.lang.Union'>
->>> subftrs.args
-(pl, isg)
->>> subftrs.isfinite
-True
->>> sym1 = subftrs.args[0]
->>> type(sym1)
+isg+pl
+>>> type(pl)
 <class 'umling.mol.lang.Symbol'>
->>> sym1.isfinite
-True
->>> ftrs
-(isg + pl) & isg
->>> ftrs.isfinite
-True
->>> lst = enum(ftrs)
->>> lst
-[0] (isg,)
->>> len(lst)
-1
->>> lst[0]
-(isg,)
->>> len(lst[0])
-1
+>>> type(not3s)
+<class 'umling.mol.lang.Value'>
+>>> sheep_value = sg + pl
+>>> sheep_value
+pl+sg
+>>> v = not3s & sheep_value
+>>> type(v)
+<class 'umling.mol.lang.Value'>
+>>> v.atoms
+(pl,)
+>>> v
+pl
 
 ## Category
 
@@ -56,7 +40,7 @@ sg
 >>> runs_pos = V[sg]
 
 >>> run_pos
-V[isg + pl]
+V[isg+pl]
 >>> are_pos
 V[pl]
 
@@ -70,7 +54,7 @@ U
 >>> U(sg)
 True
 >>> sg & U
-U & sg
+sg
 >>> sg & U == sg
 True
 >>> enum(sg & U)
@@ -90,4 +74,28 @@ True
 ## Sheep run
 
 >>> sheep_pos = N[sg+pl]
->>> sheep_pos & run_pos
+
+## Rule and dotted rules
+
+>>> from umling.mol.symbols import S
+>>> from umling.mol.variables import form
+>>> type(form)
+<class 'umling.mol.lang.Variable'>
+>>> form
+form
+>>> r = grule(S[form], N[form], V[form])
+>>> r
+S[form] -> N[form] V[form]
+>>> e = r * sheep_pos
+>>> e
+S[form] -> N[form] * V[form]
+>>> e.bindings
+{form: pl+sg}
+>>> e = e * run_pos
+>>> e
+S[form] -> N[form] V[form] * 
+>>> e.is_complete()
+True
+>>> e.cat()
+S[pl]
+

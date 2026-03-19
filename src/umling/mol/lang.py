@@ -393,6 +393,18 @@ class Symbol (Language):
         else:
             raise Exception(f'Cannot compare Symbol and {type(other)}')
 
+    def __and__ (self, other):
+        if isinstance(other, (Symbol, Value)):
+            return Value([self]).__and__(other)
+        else:
+            return Language.__and__(self, other)
+
+    def __add__ (self, other):
+        if isinstance(other, (Symbol, Value)):
+            return Value([self]).__add__(other)
+        else:
+            return Language.__add__(self, other)
+
     def __fst__ (self):
         return FST(label=(_sym_to_pyfoma(self.data),))
 
@@ -412,7 +424,7 @@ class Symbol (Language):
         return tuple([self.data])
 
     def __getitem__ (self, *ftrs):
-        return Category([self, *ftrs])
+        return Category(self, ftrs)
 
 
 symbols = Namespace(Symbol)
@@ -448,7 +460,7 @@ class Value (Language):
             atoms = [atoms]
         self.atoms = tuple(sorted(intern_symbol(x) for x in atoms))
 
-    def __or__ (self, other):
+    def __add__ (self, other):
         if self is self.top or other is self.top:
             return self.top
         elif self is self.bottom:
@@ -457,7 +469,7 @@ class Value (Language):
             return self
         else:
             atoms1 = self.atoms
-            atoms2 = other.atoms
+            atoms2 = [other] if isinstance(other, Symbol) else other.atoms
             union = []
             i = 0
             j = 0
@@ -486,7 +498,7 @@ class Value (Language):
             return self
         else:
             atoms1 = self.atoms
-            atoms2 = other.atoms
+            atoms2 = [other] if isinstance(other, Symbol) else other.atoms
             inter = []
             i = 0
             j = 0
@@ -506,19 +518,17 @@ class Value (Language):
             else:
                 return self.bottom
 
-    def __mul__ (self, other):
-        '''
-        Coerce it to an Atom and then concatenate.
-        '''
-        return self.__to_language__() * other
-
-    def __rmul__ (self, other):
-        return other * self.__to_language__()
+    def __fst__ (self):
+        fsa = FSABuilder()
+        for s in self.atoms:
+            fsa.E(1, s, 2)
+        fsa.F(2)
+        return fsa.done()._fst
 
     ##  String representation.
 
     def __bare__ (self):
-        return '+'.join(self.atoms)
+        return '+'.join(repr(s) for s in self.atoms)
 
     ##  Create a category, using this value as syncat
 
@@ -573,6 +583,8 @@ class UniversalSet (Value):
         return UNIVERSAL
 
 
+#--  Category  -----------------------------------------------------------------
+
 def atom (x):
     return atoms[x]
 
@@ -583,24 +595,67 @@ def is_sorted (lst):
     return True
 
 
-class Category (tuple):
+class Variable:
 
-    def __and__ (self, other):
-        if isinstance(other, Category):
-            if self[0] != other[0]:
-                
+    def __init__ (self, symbol):
+        if isinstance(symbol, str):
+            symbol = intern_symbol(symbol)
+        self.symbol = symbol
 
     def __repr__ (self):
-        t = self[0]
-        args = self[1:]
-        return repr(t) + '[' + ', '.join(repr(arg) for arg in args) + ']'
-
-
-class Variable (str):
-    pass
+        return repr(self.symbol)
 
 
 variables = Namespace(Variable)
+var = variables
+
+
+class Category:
+
+    def __init__ (self, symbol, features):
+        self.symbol = symbol
+        self.features = features
+
+    def __getitem__ (self, i):
+        if i == 0:
+            return self.symbol
+        else:
+            return self.features[i-1]
+
+    def __and__ (self, other):
+        return self._unify(other)
+
+    def _unify (self, other, bindings=None):
+        '''
+        Bindings will be installed in the provided bindings dict.
+        Return value is True or False.
+        '''
+        if not isinstance(other, Category):
+            raise Exception('Can only unify Category with Category')
+        if self.symbol != other.symbol:
+            return False
+        if len(self.features) != len(other.features):
+            raise Exception('Categories not conformal')
+        for i in range(len(self.features)):
+            v1 = self.features[i]
+            v2 = other.features[i]
+            if isinstance(v2, Variable):
+                raise Exception('Cannot unify with a Category that contains variables')
+            if isinstance(v1, Variable):
+                if bindings is None:
+                    raise Exception('Need bindings in order to unify a Category that contains variables')
+                value = bindings[v1] & v2
+                if not value:
+                    return False
+                bindings[v1] = value
+            elif not v1 & v2:
+                return False
+        return True
+
+    def __repr__ (self):
+        t = self.symbol
+        args = self.features
+        return repr(t) + '[' + ', '.join(repr(arg) for arg in args) + ']'
 
 
 #--  Words, letters, vocab, alphabet  ------------------------------------------
