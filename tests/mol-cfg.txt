@@ -99,3 +99,10 @@ True
 >>> e.cat()
 S[pl]
 
+## Chart nodes
+
+>>> from umling.mol.parser import parser
+>>> parser
+>>> n_node = Node(sheep_pos, 0, 1)
+>>> n_node
+
