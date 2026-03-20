@@ -8,6 +8,9 @@ from importlib.util import spec_from_loader
 class AutosymFinder (MetaPathFinder):
 
     def find_spec (self, fullname, path, target=None):
+        '''
+        For example: find_spec('umling.mol.symbols', ['autosym::'], None)
+        '''
         if path and 'autosym::' in path:
             i = fullname.rfind('.')
             if i >= 0:

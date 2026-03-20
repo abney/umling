@@ -2,15 +2,19 @@
 
 class Node:
 
-    def __init__ (self, cat, i, j, expansion, sem=None):
-        self.cat = cat
-        self.i = i
-        self.j = j
-        self.expansions = [expansion]
-        self.sem = sem
+    def __init__ (self, cat, i=-1, j=-1, expansion=None, sem=None):
+        self._cat = cat
+        self._i = i
+        self._j = j
+        self._expansion = expansion
+        self._sem = sem
+
+    def __getattr__ (self, attr):
+        if attr in {'cat', 'i', 'j', 'expansion', 'sem'}:
+            return getattr(self, '_' + attr)
 
     def __repr__ (self):
-        return '%d.%s.%d' % (self.i, self.cat, self.j)
+        return f'{self.cat.symbol}({self.i}:{self.j})'
 
 
 class PartialMatch:

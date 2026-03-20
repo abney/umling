@@ -48,12 +48,6 @@ False
 >>> enum(fsa)
 [0] ()
 
->>> fsa = done()
->>> print(fsa)
-<empty fsa>
->>> enum(fsa)
-<empty enumeration>
-
 >>> E(1, a, 1)
 >>> E(1, b, 1)
 >>> E(1, '[', 1)
@@ -63,6 +57,13 @@ False
 >>> fsa = done()
 >>> fsa('[a]')
 True
+>>> print(fsa)
+E(1, '[', 1)
+E(1, '[a]', 1)
+E(1, ']', 1)
+E(1, a, 1)
+E(1, b, 1)
+F(1)
 
 >>> enum(b * a * b)
 [0] (b, a, b)
@@ -80,7 +81,7 @@ True
 >>> from umling.mol.symbols import z, e, i, o, u
 >>> C = crange(a, z) - (a + e + i + o + u)
 >>> C
-[a-z] - (a + e + i + o + u)
+[a-z] - (a+e+i+o+u)
 >>> enum(C)
 [0] (b,)
 [1] (c,)

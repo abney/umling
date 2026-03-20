@@ -4,6 +4,7 @@ tests:
 	python -m doctest mol-fst.txt
 	python -m doctest mol-morph.txt
 	python -m doctest mol-cfg.txt
+	python -m doctest mol-parser.txt
 #
 #	python -m doctest 01-pymol-basics.txt
 #	python -m doctest 02-pymol-regex.txt

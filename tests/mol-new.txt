@@ -128,9 +128,9 @@ a∙b∙c∙d
 
 ## 14.
 >>> star(a + b)
-(a + b)*
+(a+b)*
 >>> repeat(a + b)
-(a + b)∙(a + b)*
+(a+b)∙(a+b)*
 
 ## 15.
 >>> enum((a + b) * c)
@@ -158,7 +158,7 @@ True
 >>> U = a + b
 >>> L = U * c
 >>> L
-(a + b)∙c
+(a+b)∙c
 >>> from umling.mol.symbols import dog, cat, saw, chased, the, that
 >>> N = dog + cat
 >>> V = saw + chased

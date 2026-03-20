@@ -34,7 +34,7 @@ a:b
 [0] (b, b)
 >>> R2 = io(a * b * c, c * (a + b))
 >>> R2
-(a∙b∙c):(c∙(a + b))
+(a∙b∙c):(c∙(a+b))
 >>> sorted(R2(a * b * c))
 [(c, a), (c, b)]
 

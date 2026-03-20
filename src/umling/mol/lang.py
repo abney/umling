@@ -313,7 +313,7 @@ class Language:
         is the same as mine, then no parens are needed.
         '''
         if x.precedence is None or self.precedence is None:
-            raise Exception(f'Missing precedence! {repr(self), repr(x)}')
+            raise Exception('Missing precedence!')
         if x.precedence > self.precedence or type(x) == type(self):
             return x.__bare__()
         else:
@@ -444,8 +444,6 @@ def _value_to_atom (v):
 
 class Value (Language):
     
-    precedence = 0
-
     # set at the bottom of this file
 
     top = None
@@ -459,6 +457,10 @@ class Value (Language):
         if not isinstance(atoms, (list, tuple)):
             atoms = [atoms]
         self.atoms = tuple(sorted(intern_symbol(x) for x in atoms))
+        if len(self.atoms) > 1:
+            self.precedence = -5  # union
+        else:
+            self.precedence = 0
 
     def __add__ (self, other):
         if self is self.top or other is self.top:
@@ -467,7 +469,7 @@ class Value (Language):
             return other
         elif other is self.bottom:
             return self
-        else:
+        elif isinstance(other, (Symbol, Value)):
             atoms1 = self.atoms
             atoms2 = [other] if isinstance(other, Symbol) else other.atoms
             union = []
@@ -488,6 +490,8 @@ class Value (Language):
             if i < len(atoms1): union.extend(atoms1[i:])
             if j < len(atoms2): union.extend(atoms2[j:])
             return Value(union)
+        else:
+            return Language.__add__(self, other)
 
     def __and__ (self, other):
         if self is self.bottom or other is self.bottom:
@@ -496,7 +500,7 @@ class Value (Language):
             return other
         elif other is self.top:
             return self
-        else:
+        elif isinstance(other, (Symbol, Value)):
             atoms1 = self.atoms
             atoms2 = [other] if isinstance(other, Symbol) else other.atoms
             inter = []
@@ -517,6 +521,8 @@ class Value (Language):
                 return Value(inter)
             else:
                 return self.bottom
+        else:
+            return Language.__and__(self, other)
 
     def __fst__ (self):
         fsa = FSABuilder()
@@ -627,7 +633,7 @@ class Category:
 
     def _unify (self, other, bindings=None):
         '''
-        Bindings will be installed in the provided bindings dict.
+        SIDE EFFECT: bindings will be installed in the provided bindings dict.
         Return value is True or False.
         '''
         if not isinstance(other, Category):
@@ -1265,14 +1271,14 @@ class FSABuilder:
     def done (self):
         self._require_fsa() # create an empty one if none exists
         fsa = FSA(self.fst, self.istransducer)
-        self.erase_fsa()
+        self.erase()
         return fsa
 
-    def erase_fsa (self):
+    def erase (self):
         self.fst = None
         self.istransducer = False
 
-    def edit_fsa (self, fsa):
+    def edit (self, fsa):
         assert isinstance(fsa, Language), f'Can only edit FSAs or languages: {fsa}'
         self.fst = fsa.__fst__()
         self.istransducer = fsa.istransducer
@@ -1445,12 +1451,6 @@ __path__ = ['autosym::']
 coerce = Coercion()
 epsilon = Concatenation([])
 empty = EmptyLanguage()
-_fsa_builder = FSABuilder()
-E = _fsa_builder.E
-F = _fsa_builder.F
-done = _fsa_builder.done
-erase_fsa = _fsa_builder.erase_fsa
-edit = _fsa_builder.edit_fsa
 lg = LgFunction()
 other = Other()
 rewrite = RewriteRule
