@@ -9,12 +9,12 @@ def grule (lhs, *rhs, cost=0):
 class GrammarRule:
 
     def __init__ (self, lhs, rhs, cost=0):
-        self.lhs = lhs
-        self.rhs = rhs
+        self.lhs = lhs.cat()
+        self.rhs = tuple(c.cat() for c in rhs)
         self.bindings = {}
         self.cost = cost
         
-        for cat in (lhs,) + rhs:
+        for cat in (self.lhs,) + self.rhs:
             for v in cat.features:
                 if isinstance(v, Variable) and v not in self.bindings:
                     self.bindings[v] = Value.top
@@ -64,9 +64,9 @@ class PartialMatch:
             return None
         r = self.grule
         rule_childcat = r.rhs[self.n]
-        # _unify is destructive; we need a fresh set of bindings
+        # unify is destructive; we need a fresh set of bindings
         bindings = dict(self.bindings)
-        if rule_childcat._unify(child.cat, bindings):
+        if rule_childcat.unify(child.cat, bindings):
             return PartialMatch(r, self.n+1, bindings, self.expansion + [child])
 
     def __repr__ (self):
@@ -108,6 +108,14 @@ class Grammar:
     def continuations (self, cat):
         return self._by_rhs_symbol.get(cat.symbol, [])
 
+    def generate_from (self, cat):
+        for r in self.expand(cat):
+            bindings = {}
+            lhs = cat.unify(r.lhs, bindings)
+            if lhs:
+                for (rhs, rhs_bindings) in self.generate_rhs(bindings):
+                    yield Node(lhs, expansion=rhs)
+
 
 class GrammarBuilder:
 
@@ -125,3 +133,87 @@ class GrammarBuilder:
     def edit (self, grammar):
         self.rules = grammar.rules
 
+
+class Node:
+
+    def __init__ (self, cat, i=-1, j=-1, expansion=None, sem=None):
+        self._cat = cat
+        self._i = i
+        self._j = j
+        self._expansion = expansion
+        self._sem = sem
+
+    def __getattr__ (self, attr):
+        if attr in {'cat', 'i', 'j', 'expansion', 'sem'}:
+            return getattr(self, '_' + attr)
+
+    def __repr__ (self):
+        return f'{self.cat.symbol}({self.i}:{self.j})'
+
+
+class PartialMatch:
+
+    def __init__ (self, prev, rule, expansion, bindings):
+        self.prev = prev
+        self.rule = rule
+
+        ##  The children collected so far.
+        self.expansion = expansion
+
+        ##  Current bindings.
+        self.bindings = bindings
+        timestep += 1
+
+        ##  Sequence number.  Nodes and edges are numbered in the order created.
+        self.timestep = timestep
+
+    ##  String representation.
+
+    def __repr__ (self):
+        s = '(' + str(self.rule.lhs) + ' ->'
+        for node in self.expansion:
+            s += ' ' + str(node)
+        s += ' *'
+        for cat in self.rule.rhs[len(self.expansion):]:
+            s += ' ' + str(cat)
+        s += ' {'
+        s += ' '.join(str(val) for val in self.bindings)
+        s += '})'
+        return s
+
+    ##  Rule lhs.
+
+    def cat (self):
+        return self.rule.lhs
+
+    ##  Start position of first child.
+
+    def start (self):
+        return self.expansion[0].i
+
+    ##  End position of last child so far.
+
+    def end (self):
+        return self.expansion[-1].j
+
+    ##  Category after the dot.
+
+    def afterdot (self):
+        n = len(self.expansion)
+        if n < len(self.rule.rhs):
+            return self.rule.rhs[n]
+        else:
+            return None
+
+    ##  Fuse the semantics with the semantics of the given children.
+
+    def reduce (self, children):
+        sem = self.rule.sem
+        if sem and hasattr(sem, '__call__'):
+            return sem([c.sem for c in children])
+        else:
+            return sem
+
+class Parser:
+
+    pass

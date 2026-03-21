@@ -71,6 +71,34 @@ True
 >>> empty & sg == empty
 True
 
+## unify
+
+>>> (isg+pl) & (sg+pl)
+pl
+>>> isg & (sg+pl)
+∅
+>>> bool(isg & (sg+pl))
+False
+>>> bool(sg)
+True
+
+>>> from umling.mol.variables import form
+>>> bindings = {}
+>>> N[form].unify(N[sg+pl], bindings)
+N[pl+sg]
+>>> bindings
+{form: pl+sg}
+>>> bindings = {}
+>>> N[isg+pl].unify(N[sg+pl], bindings)
+N[pl]
+>>> bindings
+{}
+>>> bindings = {form: isg+pl}
+>>> N[form].unify(N[sg+pl], bindings)
+N[pl]
+>>> bindings
+{form: pl}
+
 ## Sheep run
 
 >>> sheep_pos = N[sg+pl]
@@ -78,7 +106,6 @@ True
 ## Rule and dotted rules
 
 >>> from umling.mol.symbols import S
->>> from umling.mol.variables import form
 >>> type(form)
 <class 'umling.mol.lang.Variable'>
 >>> form

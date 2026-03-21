@@ -393,6 +393,9 @@ class Symbol (Language):
         else:
             raise Exception(f'Cannot compare Symbol and {type(other)}')
 
+    def cat (self):
+        return Category(self)
+
     def __and__ (self, other):
         if isinstance(other, (Symbol, Value)):
             return Value([self]).__and__(other)
@@ -618,9 +621,12 @@ var = variables
 
 class Category:
 
-    def __init__ (self, symbol, features):
+    def __init__ (self, symbol, features=()):
         self.symbol = symbol
         self.features = features
+
+    def cat (self):
+        return self
 
     def __getitem__ (self, i):
         if i == 0:
@@ -629,11 +635,12 @@ class Category:
             return self.features[i-1]
 
     def __and__ (self, other):
-        return self._unify(other)
+        return self.unify(other)
 
-    def _unify (self, other, bindings=None):
+    def unify (self, other, bindings=None):
         '''
-        SIDE EFFECT: bindings will be installed in the provided bindings dict.
+        SIDE EFFECT: if this category contains variables, values for the variables
+        will be installed in the provided bindings dict.
         Return value is True or False.
         '''
         if not isinstance(other, Category):
@@ -642,21 +649,43 @@ class Category:
             return False
         if len(self.features) != len(other.features):
             raise Exception('Categories not conformal')
+        outftrs = list(self.features)
+        outbindings = []
         for i in range(len(self.features)):
             v1 = self.features[i]
             v2 = other.features[i]
             if isinstance(v2, Variable):
                 raise Exception('Cannot unify with a Category that contains variables')
             if isinstance(v1, Variable):
-                if bindings is None:
-                    raise Exception('Need bindings in order to unify a Category that contains variables')
-                value = bindings[v1] & v2
-                if not value:
-                    return False
-                bindings[v1] = value
-            elif not v1 & v2:
+                if bindings and v1 in bindings:
+                    value = bindings[v1] & v2
+                else:
+                    # absent binding counts as unrestricted value
+                    value = v2
+                outbindings.append((v1, value))
+            else:
+                value = v1 & v2
+            if not value:
                 return False
-        return True
+            outftrs[i] = value
+        # success
+        for (k,v) in outbindings:
+            bindings[k] = v
+        return Category(self.symbol, tuple(outftrs))
+
+    def bind (self, bindings=None):
+        if bindings and any(isinstance(v, Variable) for v in self.features):
+            outftrs = list(self.features)
+            for i in range(len(outftrs)):
+                v = outftrs[i]
+                if isinstance(v, Variable):
+                    if v in bindings:
+                        outftrs[i] = bindings[v]
+                    else:
+                        outftrs[i] = Value.top
+            return Category(self.symbol, outftrs)
+        else:
+            return self
 
     def __repr__ (self):
         t = self.symbol

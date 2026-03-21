@@ -1,4 +1,22 @@
 
-from umling.mol.symbols import (
-     S, NP, VP
-)
+>>> from umling.mol import *
+>>> from umling.mol.symbols import (
+...      S, NP, VP, Det, N, V, this, these, dog, dogs, barks, bark, sg, pl
+... )
+...
+>>> from umling.mol.variables import form
+
+>>> R(S, NP[form], VP[form])
+>>> R(NP[form], Det[form], N[form])
+>>> R(Det[sg], this)
+>>> R(Det[pl], these)
+>>> R(N[sg], dog)
+>>> R(N[pl], dogs)
+>>> R(VP[form], V[form])
+>>> R(V[sg], barks)
+>>> R(V[pl], bark)
+
+>>> grammar = done()
+>>> len(grammar.rules)
+9
+
