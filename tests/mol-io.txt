@@ -1,0 +1,10 @@
+
+>>> from umling.mol.io import PrettyString
+>>> with PrettyString() as pprint:
+...     pprint('hi')
+...     with pprint.indent():
+...         pprint('lo')
+...     pprint('bye')
+...
+>>> str(pprint)
+'hi\n  lo\nbye\n'

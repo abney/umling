@@ -1,5 +1,6 @@
 
-from .lang import Category, Variable, Value
+from .lang import Language, Symbol, Category, Variable, Value
+from .io import PrettyString
 
 
 def grule (lhs, *rhs, cost=0):
@@ -9,15 +10,17 @@ def grule (lhs, *rhs, cost=0):
 class GrammarRule:
 
     def __init__ (self, lhs, rhs, cost=0):
-        self.lhs = lhs.cat()
-        self.rhs = tuple(c.cat() for c in rhs)
+        self.lhs = lhs.cat
+        assert isinstance(self.lhs, Category)
+        self.rhs = rhs
         self.bindings = {}
         self.cost = cost
         
         for cat in (self.lhs,) + self.rhs:
-            for v in cat.features:
-                if isinstance(v, Variable) and v not in self.bindings:
-                    self.bindings[v] = Value.top
+            if isinstance(cat, Category):
+                for v in cat.features:
+                    if isinstance(v, Variable) and v not in self.bindings:
+                        self.bindings[v] = Value.top
 
     def __mul__ (self, cat):
         return PartialMatch(self) * cat
@@ -85,36 +88,134 @@ def _append_value (d, k, v):
         d[k] = [v]
 
 
-class Grammar:
+class Grammar (Language):
 
     def __init__ (self, rules=[]):
         self.rules = rules
-        self._by_lhs_symbol = {}
-        self._by_rhs_symbol = {}
+        self._by_lhs = {}
+        self._by_rhs = {}
         self._empty_rules = []
+        self._first_tab = {}
+        self._terminals = None
+
         self._build_index()
+        self._fix_categories()
+        self._compute_terminals()
 
     def _build_index (self):
         for r in self.rules:
-            _append_value(self._by_lhs_symbol, r.lhs.symbol, r)
+            _append_value(self._by_lhs, r.lhs.symbol, r)
             if r.rhs:
-                _append_value(self._by_rhs_symbol, r.rhs[0].symbol, r)
+                _append_value(self._by_rhs, r.rhs[0].symbol, r)
             else:
                 self._empty_rules.append(r)
 
-    def expand (self, cat):
-        return self._by_lhs_symbol.get(cat.symbol, [])
+    def _fix_categories (self):
+        for i in range(len(self.rules)):
+            r = self.rules[i]
+            lhs = r.lhs.cat if isinstance(r.lhs, Symbol) else r.lhs
+            assert isinstance(lhs, Category)
+            rhs = tuple(cat if isinstance(cat, Symbol) and cat not in self._by_lhs else cat.cat
+                        for cat in r.rhs)
+            for x in rhs:
+                assert isinstance(x, Symbol) or isinstance(x, Category)
+            self.rules[i] = GrammarRule(lhs, rhs, r.cost)
+
+    def _compute_terminals (self):
+        terms = set()
+        for r in self.rules:
+            for x in r.rhs:
+                if isinstance(x, Symbol):
+                    terms.add(x)
+        self._terminals = terms
+
+    def terminals (self):
+        return self._terminals
+
+    def nonterminals (self):
+        return self._by_lhs.keys()
+
+    def is_terminal (self, x):
+        return x in self._terminals
+
+    def expansions (self, cat):
+        return self._by_lhs.get(cat.symbol, [])
 
     def continuations (self, cat):
-        return self._by_rhs_symbol.get(cat.symbol, [])
+        return self._by_rhs.get(cat.symbol, [])
+
+    def _compute_nullable (self):
+        pass
+
+    def first (self, X):
+        if isinstance(X, Symbol):
+            if X in self._terminals:
+                return [X]
+            elif X in self._by_lhs:
+                X = X.cat
+            else:
+                raise Exception('Unrecognized symbol')
+        assert isinstance(X, Category)
+        X1 = X.bind()
+        if X1 in self._first_tab:
+            return self._first_tab[X1]
+        else:
+            self._first_tab[X1] = set(self._compute_first([X1]))
+            return self._first_tab[X1]
+
+    def _compute_first (self, computing):
+        X = computing[-1]
+        assert isinstance(X, Category)
+        for r in self.rules:
+            bindings = {}
+            if r.lhs.unify(X, bindings):
+                first = r.rhs[0]
+                if isinstance(first, Symbol):
+                    yield first
+                else:
+                    first = first.bind(bindings)
+                    # if it's on our stack, break the cycle
+                    if first not in computing:
+                        yield first
+                        if first in self._first_tab:
+                            yield from self._first_tab[first]
+                        elif first not in self._terminals:
+                            yield from self._compute_first(computing + [first])
+                
 
     def generate_from (self, cat):
-        for r in self.expand(cat):
-            bindings = {}
-            lhs = cat.unify(r.lhs, bindings)
-            if lhs:
-                for (rhs, rhs_bindings) in self.generate_rhs(bindings):
-                    yield Node(lhs, expansion=rhs)
+        if isinstance(cat, Symbol):
+            cat = Category(cat)
+        return self._generate_from(cat)
+
+    def _generate_from (self, cat):
+        assert isinstance(cat, Category)
+        rules = self.expand(cat)
+        if rules:
+            for r in rules:
+                bindings = {}
+                lhs = r.lhs.unify(cat, bindings)
+                if lhs:
+                    for (subtrees, exp_bindings) in self._generate_subtrees([], r.rhs, bindings):
+                        yield Node(lhs.bind(exp_bindings), subtrees)
+        else:
+            yield cat
+
+    def _generate_subtrees (self, subtrees, cats, bindings):
+        if not cats:
+            yield (subtrees, bindings)
+        elif self.is_terminal(cats[0]):
+            yield from self._generate_subtrees(subtrees + [cats[0]], cats[1:], bindings)
+        else:
+            cat = cats[0].bind(bindings)
+            assert cat.is_variable_free()
+            for node in self.generate_from(cat):
+                exp_bindings = dict(bindings)
+                if cat.unify(node.cat, exp_bindings):
+                    yield from self._generate_subtrees(subtrees + [node], cats[1:], exp_bindings)
+
+    def __str__ (self):
+        return '\n'.join(repr(r) for r in self.rules)
 
 
 class GrammarBuilder:
@@ -136,19 +237,34 @@ class GrammarBuilder:
 
 class Node:
 
-    def __init__ (self, cat, i=-1, j=-1, expansion=None, sem=None):
+    def __init__ (self, cat, children, i=-1, j=-1, sem=None):
         self._cat = cat
+        self._children = children
         self._i = i
         self._j = j
-        self._expansion = expansion
         self._sem = sem
 
     def __getattr__ (self, attr):
-        if attr in {'cat', 'i', 'j', 'expansion', 'sem'}:
+        if attr in {'cat', 'children', 'i', 'j', 'sem'}:
             return getattr(self, '_' + attr)
 
     def __repr__ (self):
         return f'{self.cat.symbol}({self.i}:{self.j})'
+
+    def _print_recurse (self, node, pprint):
+        if not isinstance(node, Node):
+            pprint(node)
+        else:
+            pprint(node._cat)
+            if node._children:
+                with pprint.indent():
+                    for child in node._children:
+                        self._print_recurse(child, pprint)
+
+    def __str__ (self):
+        with PrettyString() as pprint:
+            self._print_recurse(self, pprint)
+        return str(pprint).rstrip('\n')
 
 
 class PartialMatch:

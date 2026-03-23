@@ -1,0 +1,134 @@
+
+## Value
+
+>>> from umling.mol import *
+>>> from umling.mol.symbols import N, V, sg, pl, isg
+>>> not3s = pl + isg
+>>> not3s
+isg+pl
+>>> type(pl)
+<class 'umling.mol.lang.Symbol'>
+>>> type(not3s)
+<class 'umling.mol.lang.Value'>
+>>> sheep_value = sg + pl
+>>> sheep_value
+pl+sg
+>>> v = not3s & sheep_value
+>>> type(v)
+<class 'umling.mol.lang.Value'>
+>>> v.atoms
+(pl,)
+>>> v
+pl
+
+## Category
+
+>>> dog = N[sg]
+>>> type(dog)
+<class 'umling.mol.lang.Category'>
+>>> type(dog[0])
+<class 'umling.mol.lang.Symbol'>
+>>> dog
+N[sg]
+>>> dog[1]
+sg
+
+>>> am_pos = V[isg]
+>>> are_pos = V[pl]
+>>> is_pos = V[sg]
+>>> run_pos = V[not3s]
+>>> runs_pos = V[sg]
+
+>>> run_pos
+V[isg+pl]
+>>> are_pos
+V[pl]
+
+>>> bool(not3s & (sg + pl))
+True
+
+## U
+
+>>> U
+U
+>>> U(sg)
+True
+>>> sg & U
+sg
+>>> sg & U == sg
+True
+>>> enum(sg & U)
+[0] (sg,)
+
+## empty
+
+>>> empty
+∅
+>>> empty & sg
+∅
+>>> enum(sg & empty)
+<empty enumeration>
+>>> empty & sg == empty
+True
+
+## unify
+
+>>> (isg+pl) & (sg+pl)
+pl
+>>> isg & (sg+pl)
+∅
+>>> bool(isg & (sg+pl))
+False
+>>> bool(sg)
+True
+
+>>> from umling.mol.variables import form
+>>> bindings = {}
+>>> N[form].unify(N[sg+pl], bindings)
+N[pl+sg]
+>>> bindings
+{form: pl+sg}
+>>> bindings = {}
+>>> N[isg+pl].unify(N[sg+pl], bindings)
+N[pl]
+>>> bindings
+{}
+>>> bindings = {form: isg+pl}
+>>> N[form].unify(N[sg+pl], bindings)
+N[pl]
+>>> bindings
+{form: pl}
+
+## Sheep run
+
+>>> sheep_pos = N[sg+pl]
+
+## Rule and dotted rules
+
+>>> from umling.mol.symbols import S
+>>> type(form)
+<class 'umling.mol.lang.Variable'>
+>>> form
+form
+>>> r = grule(S[form], N[form], V[form])
+>>> r
+S[form] -> N[form] V[form]
+>>> from umling.mol.parser import Node
+>>> NP = Node(sheep_pos)
+>>> m = r * NP
+>>> m
+S[form] -> N[form] * V[form]
+>>> m.bindings
+{form: pl+sg}
+>>> VP = Node(run_pos)
+>>> m = m * VP
+>>> m
+S[form] -> N[form] V[form] * 
+>>> m.is_complete()
+True
+>>> m.cat
+S[pl]
+>>> m.cost
+0
+>>> m.expansion
+[N(-1:-1), V(-1:-1)]

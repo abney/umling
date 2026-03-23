@@ -374,6 +374,12 @@ class Symbol (Language):
         self.istransducer = False
         self.isfinite = True
 
+    def __getattr__ (self, attr):
+        if attr == 'symbol':
+            return self
+        elif attr == 'cat':
+            return Category(self)
+
     def __hash__ (self):
         return hash(self.data)
 
@@ -392,9 +398,6 @@ class Symbol (Language):
             return self.data < other
         else:
             raise Exception(f'Cannot compare Symbol and {type(other)}')
-
-    def cat (self):
-        return Category(self)
 
     def __and__ (self, other):
         if isinstance(other, (Symbol, Value)):
@@ -625,8 +628,9 @@ class Category:
         self.symbol = symbol
         self.features = features
 
-    def cat (self):
-        return self
+    def __getattr__ (self, attr):
+        if attr == 'cat':
+            return self
 
     def __getitem__ (self, i):
         if i == 0:
@@ -673,8 +677,10 @@ class Category:
             bindings[k] = v
         return Category(self.symbol, tuple(outftrs))
 
-    def bind (self, bindings=None):
-        if bindings and any(isinstance(v, Variable) for v in self.features):
+    def bind (self, bindings={}):
+        if self.is_variable_free():
+            return self
+        else:
             outftrs = list(self.features)
             for i in range(len(outftrs)):
                 v = outftrs[i]
@@ -684,8 +690,9 @@ class Category:
                     else:
                         outftrs[i] = Value.top
             return Category(self.symbol, outftrs)
-        else:
-            return self
+
+    def is_variable_free (self):
+        return not any(isinstance(ftr, Variable) for ftr in self.features)
 
     def __repr__ (self):
         t = self.symbol

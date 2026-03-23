@@ -1,8 +1,9 @@
 
 import sys
+from pathlib import Path
 from importlib import import_module
 from importlib.abc import MetaPathFinder, Loader
-from importlib.util import spec_from_loader
+from importlib.util import spec_from_loader, spec_from_file_location
 
 
 class AutosymFinder (MetaPathFinder):
@@ -16,6 +17,14 @@ class AutosymFinder (MetaPathFinder):
             if i >= 0:
                 (parent_name, child_name) = (fullname[:i], fullname[i+1:])
                 parent = import_module(parent_name)
+                parentfn = Path(parent.__file__)
+                if parentfn.name == '__init__.py':
+                    childfn = parentfn.parent / child_name
+                    if childfn.is_dir():
+                        return spec_from_file_location(fullname, childfn)
+                    childfn = childfn.with_suffix('.py')
+                    if childfn.exists():
+                        return spec_from_file_location(fullname, childfn)
                 if child_name in parent.__dict__:
                     table = parent.__dict__[child_name]
                     return spec_from_loader(fullname, AutosymLoader(PseudoModule(fullname, table)))
