@@ -34,7 +34,62 @@ V[pl] -> bark
 >>> sorted(grammar.terminals())
 [bark, barks, dog, dogs, these, this]
 
->>> sorted(grammar.first(S))
+>>> sorted(grammar.first(S), key=repr)
+[Det[U], NP[U], these, this]
+
+>>> dr = grammar.continuations(this)[0]
+>>> dr
+Det[sg] -> this
+>>> dm = PartialMatch(dr)
+>>> dm
+Det[sg] -> * this
+>>> dm = dm * this
+>>> dm
+Det[sg] -> this *
+>>> dm.expansion[0]
+this
+>>> d = dm.reduce()
+>>> d
+Det(-1:-1)
+>>> print(d)
+Det[sg]
+  this
+
+>>> r = grammar.continuations(d.cat)[0]
+>>> r
+NP[form] -> Det[form] N[form]
+>>> m1 = PartialMatch(r)
+>>> m1
+NP[form] -> * Det[form] N[form]
+>>> m2 = m1 * d
+>>> m2
+NP[form] -> Det[sg] * N[form]
+>>> m2.bindings
+{form: sg}
+>>> e = m2.expecting()
+>>> e
+N[form]
+>>> words = sorted(grammar.first_terminals(e))
+>>> words
+[dog, dogs]
+>>> nr = grammar.continuations(words[0])[0]
+>>> nr
+N[sg] -> dog
+>>> n = (PartialMatch(nr) * dog).reduce()
+>>> n
+N(-1:-1)
+>>> m3 = m2 * n
+>>> m3
+NP[form] -> Det[sg] N[sg] *
+>>> np = m3.reduce()
+>>> print(np)
+NP[sg]
+  Det[sg]
+    this
+  N[sg]
+    dog
+
+>>> grammar.first(S)
 
 # >>> trees = list(grammar.generate_from(S))
 # >>> len(trees)

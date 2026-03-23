@@ -34,21 +34,14 @@ class PartialMatch:
     def __init__ (self, grule, n=0, bindings=None, expansion=None):
         if bindings is None:
             bindings = grule.bindings
-        if n < len(grule.rhs):
-            cat = None
-        else:
-            ftrs = tuple(v if not isinstance(v, Variable) else bindings[v]
-                         for v in grule.lhs.features)
-            cat = Category(grule.lhs.symbol, ftrs)
 
         self._grule = grule
         self._n = n
         self._bindings = bindings
         self._expansion = [] if expansion is None else expansion
-        self._cat = cat
 
     def __getattr__ (self, attr):
-        if attr in {'grule', 'n', 'bindings', 'expansion', 'cat'}:
+        if attr in {'grule', 'n', 'bindings', 'expansion'}:
             return getattr(self, '_' + attr)
         elif attr == 'i':
             return self._expansion[0].i
@@ -62,23 +55,40 @@ class PartialMatch:
     def is_complete (self):
         return self.n >= len(self.grule.rhs)
 
+    def expecting (self):
+        if self.n < len(self.grule.rhs):
+            return self.grule.rhs[self.n]
+
     def __mul__ (self, child):
         if self.is_complete():
             return None
         r = self.grule
         rule_childcat = r.rhs[self.n]
-        # unify is destructive; we need a fresh set of bindings
-        bindings = dict(self.bindings)
-        if rule_childcat.unify(child.cat, bindings):
-            return PartialMatch(r, self.n+1, bindings, self.expansion + [child])
+        if isinstance(child, Symbol):
+            if child == rule_childcat:
+                return PartialMatch(r, self.n+1, self.bindings, self.expansion + [child])
+        else:
+            # unify is destructive; we need a fresh set of bindings
+            bindings = dict(self.bindings)
+            chcat = r.rhs[self.n].unify(child.cat, bindings)
+            if chcat:
+                child = child.clone(cat=chcat)
+                return PartialMatch(r, self.n+1, bindings, self.expansion + [child])
+
+    def reduce (self):
+        b = self.bindings
+        r = self.grule
+        lhs = r.lhs.bind(b)
+        return Node(lhs, self.expansion)
 
     def __repr__ (self):
         lhs = self.grule.lhs
         rhs = self.grule.rhs
         n = self.n
-        predot = ' '.join(repr(c) for c in rhs[:n])
-        postdot = ' '.join(repr(c) for c in rhs[n:])
-        return f"{repr(lhs)} -> {predot} * {postdot}"
+        predot = [repr(child) if isinstance(child, Symbol) else repr(child.cat)
+                  for child in self.expansion]
+        postdot = [repr(x) for x in rhs[n:]]
+        return ' '.join([repr(lhs), '->'] + predot + ['*'] + postdot)
 
 
 def _append_value (d, k, v):
@@ -156,12 +166,12 @@ class Grammar (Language):
             else:
                 raise Exception('Unrecognized symbol')
         assert isinstance(X, Category)
-        X1 = X.bind()
-        if X1 in self._first_tab:
-            return self._first_tab[X1]
+        X = X.bind()
+        if X in self._first_tab:
+            return self._first_tab[X]
         else:
-            self._first_tab[X1] = set(self._compute_first([X1]))
-            return self._first_tab[X1]
+            self._first_tab[X] = set(self._compute_first([X]))
+            return self._first_tab[X]
 
     def _compute_first (self, computing):
         X = computing[-1]
@@ -182,6 +192,8 @@ class Grammar (Language):
                         elif first not in self._terminals:
                             yield from self._compute_first(computing + [first])
                 
+    def first_terminals (self, X):
+        return [t for t in self.first(X) if isinstance(t, Symbol)]
 
     def generate_from (self, cat):
         if isinstance(cat, Symbol):
@@ -244,6 +256,10 @@ class Node:
         self._j = j
         self._sem = sem
 
+    def clone (self, cat=None):
+        if cat is None: cat = self._cat
+        return Node(cat, self._children, self._i, self._j, self._sem)
+
     def __getattr__ (self, attr):
         if attr in {'cat', 'children', 'i', 'j', 'sem'}:
             return getattr(self, '_' + attr)
@@ -267,68 +283,68 @@ class Node:
         return str(pprint).rstrip('\n')
 
 
-class PartialMatch:
-
-    def __init__ (self, prev, rule, expansion, bindings):
-        self.prev = prev
-        self.rule = rule
-
-        ##  The children collected so far.
-        self.expansion = expansion
-
-        ##  Current bindings.
-        self.bindings = bindings
-        timestep += 1
-
-        ##  Sequence number.  Nodes and edges are numbered in the order created.
-        self.timestep = timestep
-
-    ##  String representation.
-
-    def __repr__ (self):
-        s = '(' + str(self.rule.lhs) + ' ->'
-        for node in self.expansion:
-            s += ' ' + str(node)
-        s += ' *'
-        for cat in self.rule.rhs[len(self.expansion):]:
-            s += ' ' + str(cat)
-        s += ' {'
-        s += ' '.join(str(val) for val in self.bindings)
-        s += '})'
-        return s
-
-    ##  Rule lhs.
-
-    def cat (self):
-        return self.rule.lhs
-
-    ##  Start position of first child.
-
-    def start (self):
-        return self.expansion[0].i
-
-    ##  End position of last child so far.
-
-    def end (self):
-        return self.expansion[-1].j
-
-    ##  Category after the dot.
-
-    def afterdot (self):
-        n = len(self.expansion)
-        if n < len(self.rule.rhs):
-            return self.rule.rhs[n]
-        else:
-            return None
-
-    ##  Fuse the semantics with the semantics of the given children.
-
-    def reduce (self, children):
-        sem = self.rule.sem
-        if sem and hasattr(sem, '__call__'):
-            return sem([c.sem for c in children])
-        else:
-            return sem
+# class PartialMatch:
+# 
+#     def __init__ (self, prev, rule, expansion, bindings):
+#         self.prev = prev
+#         self.rule = rule
+# 
+#         ##  The children collected so far.
+#         self.expansion = expansion
+# 
+#         ##  Current bindings.
+#         self.bindings = bindings
+#         timestep += 1
+# 
+#         ##  Sequence number.  Nodes and edges are numbered in the order created.
+#         self.timestep = timestep
+# 
+#     ##  String representation.
+# 
+#     def __repr__ (self):
+#         s = '(' + str(self.rule.lhs) + ' ->'
+#         for node in self.expansion:
+#             s += ' ' + str(node)
+#         s += ' *'
+#         for cat in self.rule.rhs[len(self.expansion):]:
+#             s += ' ' + str(cat)
+#         s += ' {'
+#         s += ' '.join(str(val) for val in self.bindings)
+#         s += '})'
+#         return s
+# 
+#     ##  Rule lhs.
+# 
+#     def cat (self):
+#         return self.rule.lhs
+# 
+#     ##  Start position of first child.
+# 
+#     def start (self):
+#         return self.expansion[0].i
+# 
+#     ##  End position of last child so far.
+# 
+#     def end (self):
+#         return self.expansion[-1].j
+# 
+#     ##  Category after the dot.
+# 
+#     def afterdot (self):
+#         n = len(self.expansion)
+#         if n < len(self.rule.rhs):
+#             return self.rule.rhs[n]
+#         else:
+#             return None
+# 
+#     ##  Fuse the semantics with the semantics of the given children.
+# 
+#     def reduce (self, children):
+#         sem = self.rule.sem
+#         if sem and hasattr(sem, '__call__'):
+#             return sem([c.sem for c in children])
+#         else:
+#             return sem
 
 class Parser:
 

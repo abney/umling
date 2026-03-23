@@ -632,6 +632,16 @@ class Category:
         if attr == 'cat':
             return self
 
+    def __hash__ (self):
+        return hash(repr(self))
+
+    def __eq__ (self, other):
+        return isinstance(other, Category) and repr(self) == repr(other)
+
+    def __lt__ (self, other):
+        assert isinstance(other, Category)
+        return repr(self) < repr(other)
+
     def __getitem__ (self, i):
         if i == 0:
             return self.symbol
@@ -678,7 +688,7 @@ class Category:
         return Category(self.symbol, tuple(outftrs))
 
     def bind (self, bindings={}):
-        if self.is_variable_free():
+        if self.is_bound():
             return self
         else:
             outftrs = list(self.features)
@@ -691,7 +701,7 @@ class Category:
                         outftrs[i] = Value.top
             return Category(self.symbol, outftrs)
 
-    def is_variable_free (self):
+    def is_bound (self):
         return not any(isinstance(ftr, Variable) for ftr in self.features)
 
     def __repr__ (self):
