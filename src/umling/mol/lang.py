@@ -1428,6 +1428,13 @@ class FSA (Language):
             return '<empty fsa>'
 
 
+def invert (x):
+    if hasattr(x, '__invert__'):
+        return x.__invert__()
+    else:
+        return Inversion(x)
+
+
 class Inversion (Language):
 
     precedence = -2
@@ -1500,7 +1507,6 @@ empty = EmptyLanguage()
 lg = LgFunction()
 other = Other()
 rewrite = RewriteRule
-invert = Inversion
 union = Union
 U = UniversalSet()
 Value.top = U

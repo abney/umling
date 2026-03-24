@@ -1,13 +1,51 @@
 
-from .lang import Language, Symbol, Category, Variable, Value
+from heapq import heappush, heappop
+from .lang import Language, Symbol, Category, Variable, Value, string, intern_symbol
 from .io import PrettyString
 
 
 def grule (lhs, *rhs, cost=0):
-    return GrammarRule(lhs, tuple(rhs), cost)
+    return Rule(lhs, tuple(rhs), cost)
 
 
-class GrammarRule:
+class Node:
+
+    def __init__ (self, cat, children, rule=None, i=-1, j=-1, cost=0, sem=None):
+        self._cat = cat
+        self._children = children
+        self._rule = rule
+        self._i = i
+        self._j = j
+        self._cost = cost
+        self._sem = sem
+
+    def clone (self, cat=None):
+        if cat is None: cat = self._cat
+        return Node(cat, self._children, self._rule, self._i, self._j, self._cost, self._sem)
+
+    def __getattr__ (self, attr):
+        if attr in {'cat', 'children', 'rule', 'i', 'j', 'cost', 'sem'}:
+            return getattr(self, '_' + attr)
+
+    def __repr__ (self):
+        return f'{self.cat.symbol}({self.i}:{self.j})'
+
+    def __str__ (self):
+        with PrettyString() as pprint:
+            self._pretty_print(self, pprint)
+        return str(pprint).rstrip('\n')
+
+    def _pretty_print (self, node, pprint):
+        if isinstance(node, (Symbol, str)):
+            pprint(node)
+        else:
+            pprint(node.cat)
+            with pprint.indent():
+                for child in node.children:
+                    self._pretty_print(child, pprint)
+
+
+class Rule:
 
     def __init__ (self, lhs, rhs, cost=0):
         self.lhs = lhs.cat
@@ -22,71 +60,71 @@ class GrammarRule:
                     if isinstance(v, Variable) and v not in self.bindings:
                         self.bindings[v] = Value.top
 
-    def __mul__ (self, cat):
-        return PartialMatch(self) * cat
+    def start (self):
+        return Partial(self, 0, self.bindings, [])
+
+    def shift (self, i):
+        assert len(self.rhs) == 1 and isinstance(self.rhs[0], Symbol)
+        return Node(self.lhs, self.rhs, self, i, i+1, self.cost)
+
+    def topdown (self, cat):
+        b = {}
+        if self.lhs.unify(cat, b):
+            return Partial(self, 0, b, [])
 
     def __repr__ (self):
         return f"{repr(self.lhs)} -> {' '.join(repr(c) for c in self.rhs)}"
 
 
-class PartialMatch:
+class Partial:
 
-    def __init__ (self, grule, n=0, bindings=None, expansion=None):
-        if bindings is None:
-            bindings = grule.bindings
-
-        self._grule = grule
+    def __init__ (self, rule, n, bindings, children):
+        self._rule = rule
         self._n = n
         self._bindings = bindings
-        self._expansion = [] if expansion is None else expansion
+        self._children = children
 
     def __getattr__ (self, attr):
-        if attr in {'grule', 'n', 'bindings', 'expansion'}:
+        if attr in {'rule', 'n', 'bindings', 'children'}:
             return getattr(self, '_' + attr)
         elif attr == 'i':
-            return self._expansion[0].i
+            return self._children[0].i if self._children else self._i
         elif attr == 'j':
-            return self._expansion[-1].j
-        elif attr == 'cost':
-            return self.grule.cost
+            return self._children[-1].j if self._children else self._i + 1
         else:
             raise AttributeError('No such attribute')
 
     def is_complete (self):
-        return self.n >= len(self.grule.rhs)
+        return self.n >= len(self.rule.rhs)
 
-    def expecting (self):
-        if self.n < len(self.grule.rhs):
-            return self.grule.rhs[self.n]
+    def expectation (self):
+        if self.n < len(self.rule.rhs):
+            nextcat = self.rule.rhs[self.n]
+            return nextcat.bind(self.bindings)
 
     def __mul__ (self, child):
+        assert isinstance(child, Node)
         if self.is_complete():
             return None
-        r = self.grule
-        rule_childcat = r.rhs[self.n]
-        if isinstance(child, Symbol):
-            if child == rule_childcat:
-                return PartialMatch(r, self.n+1, self.bindings, self.expansion + [child])
-        else:
-            # unify is destructive; we need a fresh set of bindings
-            bindings = dict(self.bindings)
-            chcat = r.rhs[self.n].unify(child.cat, bindings)
-            if chcat:
-                child = child.clone(cat=chcat)
-                return PartialMatch(r, self.n+1, bindings, self.expansion + [child])
+        b = dict(self.bindings)
+        cat = self.rule.rhs[self.n]
+        cat = cat.unify(child.cat, b)
+        if cat:
+            child = child.clone(cat=cat)
+            return Partial(self.rule, self.n+1, b, self.children + [child])
 
     def reduce (self):
-        b = self.bindings
-        r = self.grule
-        lhs = r.lhs.bind(b)
-        return Node(lhs, self.expansion)
+        r = self.rule
+        cat = r.lhs.bind(self.bindings)
+        cost = r.cost + sum(child.cost for child in self.children)
+        return Node(cat, self.children, r, self.i, self.j, cost)
 
     def __repr__ (self):
-        lhs = self.grule.lhs
-        rhs = self.grule.rhs
+        lhs = self.rule.lhs
+        rhs = self.rule.rhs
         n = self.n
         predot = [repr(child) if isinstance(child, Symbol) else repr(child.cat)
-                  for child in self.expansion]
+                  for child in self.children]
         postdot = [repr(x) for x in rhs[n:]]
         return ' '.join([repr(lhs), '->'] + predot + ['*'] + postdot)
 
@@ -100,8 +138,16 @@ def _append_value (d, k, v):
 
 class Grammar (Language):
 
-    def __init__ (self, rules=[]):
+    def __init__ (self, rules=[], start_cat=None):
+        if start_cat is None:
+            start_cat = Category(rules[0].lhs.symbol)
+        elif isinstance(start_cat, Symbol):
+            start_cat = Category(start_cat)
+        elif not isinstance(start_cat, Category):
+            raise Exception('Start cat must be a Symbol or Category')
+
         self.rules = rules
+        self._start_cat = start_cat
         self._by_lhs = {}
         self._by_rhs = {}
         self._empty_rules = []
@@ -129,7 +175,7 @@ class Grammar (Language):
                         for cat in r.rhs)
             for x in rhs:
                 assert isinstance(x, Symbol) or isinstance(x, Category)
-            self.rules[i] = GrammarRule(lhs, rhs, r.cost)
+            self.rules[i] = Rule(lhs, rhs, r.cost)
 
     def _compute_terminals (self):
         terms = set()
@@ -138,6 +184,9 @@ class Grammar (Language):
                 if isinstance(x, Symbol):
                     terms.add(x)
         self._terminals = terms
+
+    def start_cat (self):
+        return self._start_cat
 
     def terminals (self):
         return self._terminals
@@ -148,11 +197,15 @@ class Grammar (Language):
     def is_terminal (self, x):
         return x in self._terminals
 
+    def is_nonterminal (self, x):
+        return isinstance(x, Category) and x.symbol in self._by_lhs
+
     def expansions (self, cat):
         return self._by_lhs.get(cat.symbol, [])
 
     def continuations (self, cat):
-        return self._by_rhs.get(cat.symbol, [])
+        sym = cat if isinstance(cat, Symbol) else cat.symbol
+        return self._by_rhs.get(sym, [])
 
     def _compute_nullable (self):
         pass
@@ -195,51 +248,43 @@ class Grammar (Language):
     def first_terminals (self, X):
         return [t for t in self.first(X) if isinstance(t, Symbol)]
 
-    def generate_from (self, cat):
-        if isinstance(cat, Symbol):
-            cat = Category(cat)
-        return self._generate_from(cat)
+    def is_left_derivable (self, Y, context):
+        for Y1 in self.first(context):
+            if Y & Y1:
+                return Y1
 
-    def _generate_from (self, cat):
-        assert isinstance(cat, Category)
-        rules = self.expand(cat)
-        if rules:
-            for r in rules:
-                bindings = {}
-                lhs = r.lhs.unify(cat, bindings)
-                if lhs:
-                    for (subtrees, exp_bindings) in self._generate_subtrees([], r.rhs, bindings):
-                        yield Node(lhs.bind(exp_bindings), subtrees)
-        else:
-            yield cat
+    def is_reducible (self, Y, context):
+        for r in self.continuations(Y):
+            if self.is_left_derivable(r.lhs, context):
+                return True
 
-    def _generate_subtrees (self, subtrees, cats, bindings):
-        if not cats:
-            yield (subtrees, bindings)
-        elif self.is_terminal(cats[0]):
-            yield from self._generate_subtrees(subtrees + [cats[0]], cats[1:], bindings)
-        else:
-            cat = cats[0].bind(bindings)
-            assert cat.is_variable_free()
-            for node in self.generate_from(cat):
-                exp_bindings = dict(bindings)
-                if cat.unify(node.cat, exp_bindings):
-                    yield from self._generate_subtrees(subtrees + [node], cats[1:], exp_bindings)
+    def sample (self, *args, **kwargs):
+        return Generator(self)(*args, **kwargs)
 
     def __str__ (self):
         return '\n'.join(repr(r) for r in self.rules)
+
+    def __invert__ (self):
+        return Parser(self)
 
 
 class GrammarBuilder:
 
     def __init__ (self):
         self.rules = []
+        self.start_cat = None
 
     def R (self, lhs, *rhs, cost=0):
-        self.rules.append(GrammarRule(lhs, rhs, cost))
+        if isinstance(lhs, Symbol):
+            lhs = Category(lhs)
+        elif not isinstance(lhs, Category):
+            raise Exception('Lhs is not a Category')
+        self.rules.append(Rule(lhs, rhs, cost))
+        if lhs.symbol.data == 'Start' and not lhs.features:
+            self.start_cat = lhs
 
     def done (self):
-        g = Grammar(self.rules)
+        g = Grammar(self.rules, self.start_cat)
         self.rules = []
         return g
 
@@ -247,105 +292,141 @@ class GrammarBuilder:
         self.rules = grammar.rules
 
 
-class Node:
-
-    def __init__ (self, cat, children, i=-1, j=-1, sem=None):
-        self._cat = cat
-        self._children = children
-        self._i = i
-        self._j = j
-        self._sem = sem
-
-    def clone (self, cat=None):
-        if cat is None: cat = self._cat
-        return Node(cat, self._children, self._i, self._j, self._sem)
-
-    def __getattr__ (self, attr):
-        if attr in {'cat', 'children', 'i', 'j', 'sem'}:
-            return getattr(self, '_' + attr)
-
-    def __repr__ (self):
-        return f'{self.cat.symbol}({self.i}:{self.j})'
-
-    def _print_recurse (self, node, pprint):
-        if not isinstance(node, Node):
-            pprint(node)
-        else:
-            pprint(node._cat)
-            if node._children:
-                with pprint.indent():
-                    for child in node._children:
-                        self._print_recurse(child, pprint)
-
-    def __str__ (self):
-        with PrettyString() as pprint:
-            self._print_recurse(self, pprint)
-        return str(pprint).rstrip('\n')
-
-
-# class PartialMatch:
-# 
-#     def __init__ (self, prev, rule, expansion, bindings):
-#         self.prev = prev
-#         self.rule = rule
-# 
-#         ##  The children collected so far.
-#         self.expansion = expansion
-# 
-#         ##  Current bindings.
-#         self.bindings = bindings
-#         timestep += 1
-# 
-#         ##  Sequence number.  Nodes and edges are numbered in the order created.
-#         self.timestep = timestep
-# 
-#     ##  String representation.
-# 
-#     def __repr__ (self):
-#         s = '(' + str(self.rule.lhs) + ' ->'
-#         for node in self.expansion:
-#             s += ' ' + str(node)
-#         s += ' *'
-#         for cat in self.rule.rhs[len(self.expansion):]:
-#             s += ' ' + str(cat)
-#         s += ' {'
-#         s += ' '.join(str(val) for val in self.bindings)
-#         s += '})'
-#         return s
-# 
-#     ##  Rule lhs.
-# 
-#     def cat (self):
-#         return self.rule.lhs
-# 
-#     ##  Start position of first child.
-# 
-#     def start (self):
-#         return self.expansion[0].i
-# 
-#     ##  End position of last child so far.
-# 
-#     def end (self):
-#         return self.expansion[-1].j
-# 
-#     ##  Category after the dot.
-# 
-#     def afterdot (self):
-#         n = len(self.expansion)
-#         if n < len(self.rule.rhs):
-#             return self.rule.rhs[n]
-#         else:
-#             return None
-# 
-#     ##  Fuse the semantics with the semantics of the given children.
-# 
-#     def reduce (self, children):
-#         sem = self.rule.sem
-#         if sem and hasattr(sem, '__call__'):
-#             return sem([c.sem for c in children])
-#         else:
-#             return sem
-
 class Parser:
 
-    pass
+    def __init__ (self, grammar):
+        self._grammar = grammar
+
+    def __call__ (self, sent, trace=False):
+        self._chart = {}
+        self._partial = {}
+        self._todo = []
+        self._best = None
+        self._trace = trace
+        for (i, w) in enumerate(string(sent)):
+            self.shift(w, i)
+            while self._todo:
+                self.do_task()
+        return self._best
+
+    def shift (self, w, i):
+        for r in self._grammar.continuations(w):
+            self.add_node(r.shift(i))
+        
+    def add_node (self, node):
+        key = (node.cat, node.i, node.j)
+        if key in self._chart:
+            oldnode = self._chart[key]
+            if node.cost < oldnode.cost:
+                self._chart[key] = node
+                self.trace('Replace Node', node)
+                self.eval_node(node)
+            else:
+                self.trace('Discard Alternative', X, node)
+        else:
+            self._chart[key] = node
+            self.trace('Add Node', node)
+            self.start(node)
+            self.combine(node)
+            self.eval_node(node)
+
+    def start (self, node):
+        for r in self._grammar.continuations(node.cat):
+            m = r.start() * node
+            if m:
+                self.trace('Start', m)
+                self.add_partial(m)
+
+    def combine (self, node):
+        for m in self._partial.get((node.i, node.cat.symbol), []):
+            m1 = m * node
+            if m1:
+                self.trace('Combine', m, node, m1)
+                self.add_partial(m1)
+            else:
+                self.trace('Unification Failure', m, node)
+
+    def add_partial (self, m):
+        if m.is_complete():
+            heappush(self._todo, (m.j - m.i, id(m), m))
+        else:
+            key = (m.j, m.expectation().symbol)
+            if key in self._partial:
+                self._partial[key].append(m)
+            else:
+                self._partial[key] = [m]
+
+    def do_task (self):
+        (_, _, m) = heappop(self._todo)
+        assert m.is_complete()
+        self.add_node(m.reduce())
+
+    def eval_node (self, node):
+        if node.i == 0:
+            best = self._best
+            if (best is None or 
+                node.j > best.j or
+                node.j == best.j and node.cost < best.cost):
+                self._best = node
+
+    def trace (self, *args):
+        if self._trace:
+            print(args[0], *[repr(arg) for arg in args[1:]])
+
+
+class Generator:
+
+    def __init__ (self, grammar):
+        self._grammar = grammar
+
+    def __call__ (self, cat=None, seed=None, max_attempts=100, max_depth=100, trace=False):
+        if seed is not None:
+            random.seed(seed)
+        if cat is None:
+            cat = self._grammar.start_cat()
+        for _ in range(max_attempts):
+            try:
+                return self._call1(cat, max_depth, trace)
+            except:
+                pass
+        if trace:
+            print('Exceeded max_attempts')
+
+    def _call1 (self, cat, max_depth, trace):
+        print('_call1', cat, max_depth, trace)
+        if trace:
+            with PrettyString() as pprint:
+                return self._generate_from(cat, 0, max_depth, pprint)
+        else:
+            return self._generate_from(cat, 0, max_depth, None)
+
+    def _generate_from (self, cat, i, max_depth, pprint):
+        self.trace(pprint, 'push', cat, i)
+        g = self._grammar
+        rules = self._grammar.expansions(cat)
+        r = random.choice(rules)
+        if r.is_preterminal():
+            self.trace(pprint, 'pop', r.lhs, r.rhs, i, i+1)
+            return Node(r.lhs, r.rhs, r, i, i+1, r.cost)
+        else:
+            m = r.topdown(cat)
+            while not m.is_complete():
+                chcat = m.expectation()
+                if max_depth < 1:
+                    self.trace(pprint, 'abort', 'Exceeded max_depth')
+                    raise Exception('Exceeded max_depth')
+                child = self._generate_from(chcat, i, max_depth-1, pprint)
+                m = m * child
+            return m.reduce()
+
+    def trace (self, pprint, which, *args):
+        if pprint is not None:
+            if which == 'push':
+                pprint(*args)
+                pprint.start_indent()
+            elif which == 'pop':
+                pprint.end_indent()
+                pprint('->', *args)
+            elif which == 'abort':
+                pprint(*args)
+

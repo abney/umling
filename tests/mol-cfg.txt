@@ -40,17 +40,9 @@ V[pl] -> bark
 >>> dr = grammar.continuations(this)[0]
 >>> dr
 Det[sg] -> this
->>> dm = PartialMatch(dr)
->>> dm
-Det[sg] -> * this
->>> dm = dm * this
->>> dm
-Det[sg] -> this *
->>> dm.expansion[0]
-this
->>> d = dm.reduce()
+>>> d = dr.shift(0)
 >>> d
-Det(-1:-1)
+Det(0:1)
 >>> print(d)
 Det[sg]
   this
@@ -58,29 +50,36 @@ Det[sg]
 >>> r = grammar.continuations(d.cat)[0]
 >>> r
 NP[form] -> Det[form] N[form]
->>> m1 = PartialMatch(r)
+>>> m1 = r.start()
 >>> m1
 NP[form] -> * Det[form] N[form]
+>>> r.start() * d
+NP[form] -> Det[sg] * N[form]
 >>> m2 = m1 * d
 >>> m2
 NP[form] -> Det[sg] * N[form]
 >>> m2.bindings
 {form: sg}
->>> e = m2.expecting()
+>>> e = m2.expectation()
 >>> e
-N[form]
+N[sg]
 >>> words = sorted(grammar.first_terminals(e))
 >>> words
-[dog, dogs]
+[dog]
 >>> nr = grammar.continuations(words[0])[0]
 >>> nr
 N[sg] -> dog
->>> n = (PartialMatch(nr) * dog).reduce()
+>>> n = nr.shift(1)
 >>> n
-N(-1:-1)
+N(1:2)
 >>> m3 = m2 * n
 >>> m3
 NP[form] -> Det[sg] N[sg] *
+>>> m3.is_complete()
+True
+>>> m3.children
+[Det(0:1), N(1:2)]
+
 >>> np = m3.reduce()
 >>> print(np)
 NP[sg]
@@ -89,9 +88,32 @@ NP[sg]
   N[sg]
     dog
 
->>> grammar.first(S)
+>>> sorted(grammar.first(S), key=repr)
+[Det[U], NP[U], these, this]
 
-# >>> trees = list(grammar.generate_from(S))
-# >>> len(trees)
-# 8
-# >>> print(trees[0])
+>>> parse = invert(grammar)
+>>> parse(this * dog * barks, trace=True)
+Add Node Det(0:1)
+Start NP[form] -> Det[sg] * N[form]
+Add Node N(1:2)
+Combine NP[form] -> Det[sg] * N[form] N(1:2) NP[form] -> Det[sg] N[sg] *
+Add Node NP(0:2)
+Start S[] -> NP[sg] * VP[form]
+Add Node V(2:3)
+Start VP[form] -> V[sg] *
+Add Node VP(2:3)
+Combine S[] -> NP[sg] * VP[form] VP(2:3) S[] -> NP[sg] VP[sg] *
+Add Node S(0:3)
+S(0:3)
+>>> print(parse(this * dog * barks))
+S[]
+  NP[sg]
+    Det[sg]
+      this
+    N[sg]
+      dog
+  VP[sg]
+    V[sg]
+      barks
+
+>>> grammar.sample(trace=True)
