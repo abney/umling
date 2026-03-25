@@ -1,0 +1,8 @@
+
+>>> from umling.mol import *
+>>> Letter = alphabet('abcdefghijklmnopqrstuvwxyz')
+>>> Letter
+>>> Digit = alphabet('0123456789')
+>>> Underscore = sym('_')
+>>> Alphanumeric = Letter + Underscore + Digit
+>>> Identifier = (Letter + Underscore) * star(Alphanumeric)

@@ -2,7 +2,7 @@
 import random
 from heapq import heappush, heappop
 from .lang import Language, Symbol, Category, Variable, Value, string, intern_symbol
-from .io import PrettyString, PrettyPrinter
+from .pprint import PrettyString, PrettyPrinter
 
 
 def grule (lhs, *rhs, cost=0):
@@ -11,7 +11,7 @@ def grule (lhs, *rhs, cost=0):
 
 class Node:
 
-    def __init__ (self, cat, children, rule=None, i=-1, j=-1, cost=0, sem=None):
+    def __init__ (self, cat, children=None, rule=None, i=-1, j=-1, cost=0, sem=None):
         self._cat = cat
         self._children = children
         self._rule = rule
@@ -101,6 +101,9 @@ class Partial:
     def is_complete (self):
         return self.n >= len(self.rule.rhs)
 
+    def is_preterminal (self):
+        return self._rule.is_preterminal()
+
     def expectation (self):
         if self.n < len(self.rule.rhs):
             nextcat = self.rule.rhs[self.n]
@@ -116,6 +119,11 @@ class Partial:
         if cat:
             child = child.clone(cat=cat)
             return Partial(self.rule, self.n+1, b, self.children + [child])
+
+    def shift (self, i):
+        children = self._rule.rhs
+        assert all(isinstance(child, Symbol) for child in children)
+        return Node(self._rule.lhs, self._rule.rhs, self._rule, i, i+len(children), self._rule.cost)
 
     def reduce (self):
         r = self.rule
@@ -388,24 +396,22 @@ class Generator:
             cat = self._grammar.start_cat()
         for _ in range(max_attempts):
             try:
-                self.pprint = PrettyPrinter()
+                self.trace = Tracer(trace)
                 return self._generate_from(cat, 0, max_depth)
             except Exception as e:
                 pass
 
     def _generate_from (self, cat, i, max_depth):
-        print('cat=', cat)
         g = self._grammar
-        rules = self._grammar.expansions(cat)
-        
-
-        print('rules=', rules)
-        r = random.choice(rules)
-        if r.is_preterminal():
-            print('return', r.lhs, r.rhs)
-            return Node(r.lhs, r.rhs, r, i, i+1, r.cost)
+        partials = [r.topdown(cat) for r in self._grammar.expansions(cat)]
+        partials = [p for p in partials if p is not None]
+        m = random.choice(partials)
+        self.trace.start(cat, m, partials)
+        if m.is_preterminal():
+            node = m.shift(i)
+            self.trace.end(node)
+            return node
         else:
-            m = r.topdown(cat)
             while not m.is_complete():
                 chcat = m.expectation()
                 if max_depth < 1:
@@ -413,4 +419,34 @@ class Generator:
                 j = m.j if m.children else i
                 child = self._generate_from(chcat, j, max_depth-1)
                 m = m * child
-            return m.reduce()
+            node = m.reduce()
+            self.trace.end(node)
+            return node
+
+
+class Tracer:
+
+    def __init__ (self, on):
+        self.on = on
+        self.pprint = PrettyPrinter() if on else None
+
+    def start (self, cat, rules, r):
+        if not self.on: return
+        self.pprint('start:', cat, r, rules)
+        self.pprint.start_indent()
+
+    def end (self, node):
+        if not self.on: return
+        self.pprint.end_indent()
+        self.pprint('->', node)
+
+
+class GrammarFile:
+
+    def __init__ (self, fn):
+        self.filename = fn
+
+    def __iter__ (self):
+        with open(self.filename) as f:
+            lines = [line.rstrip('\r\n') for line in f]
+        

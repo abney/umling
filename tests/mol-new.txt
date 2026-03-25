@@ -46,9 +46,9 @@ True
 >>> a
 a
 >>> from umling.mol.symbols import c, l, o, orange, an, cat
->>> alphabet('cool') == {c, l, o}
+>>> alphabet('cool') == c + l + o
 True
->>> vocab('an orange cat') == {orange, an, cat}
+>>> vocab('an orange cat') == orange + an + cat
 True
 
 ## 9.

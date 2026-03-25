@@ -434,7 +434,7 @@ class Symbol (Language):
 
 
 symbols = Namespace(Symbol)
-intern_symbol = symbols
+sym = intern_symbol = symbols
 
 
 #--  Value  --------------------------------------------------------------------
@@ -619,7 +619,6 @@ class Variable:
 
 
 variables = Namespace(Variable)
-var = variables
 
 
 class Category:
@@ -732,7 +731,7 @@ def vocab (*words):
             raise Exception(f'Expecting words, got {words[0]}')
     assert all(isinstance(word, str) for word in words), 'Vocabulary elements must be quoted'
     assert all(' ' not in word for word in words), 'Vocabulary elements cannot contain spaces'
-    return set(intern_symbol(w) for w in words)
+    return union(set(intern_symbol(w) for w in words))
 
 def alphabet (*letters):
     if len(letters) == 1:
@@ -742,7 +741,7 @@ def alphabet (*letters):
             letters = letters[0]
     assert all(isinstance(letter, str) for letter in letters), 'Alphabet elements must be quoted'
     assert all(len(letter) == 1 for letter in letters), 'Alphabet elements must be single letters'
-    return set(intern_symbol(ltr) for ltr in letters)
+    return union(set(intern_symbol(ltr) for ltr in letters))
 
 
 class IterableCall:

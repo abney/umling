@@ -120,6 +120,26 @@ S[]
 >>> random.seed(42)
 >>> print(grammar.sample())
 S[]
+  NP[pl]
+    Det[pl]
+      these
+    N[pl]
+      dogs
+  VP[pl]
+    V[pl]
+      bark
+>>> print(grammar.sample())
+S[]
+  NP[pl]
+    Det[pl]
+      these
+    N[pl]
+      dogs
+  VP[pl]
+    V[pl]
+      bark
+>>> print(grammar.sample())
+S[]
   NP[sg]
     Det[sg]
       this
@@ -128,8 +148,14 @@ S[]
   VP[sg]
     V[sg]
       barks
->>> print(grammar.sample())
->>> print(grammar.sample())
 >>> parse = invert(grammar)
->>> parse(these * dogs * bark)
-S(0:3)
+>>> print(parse(these * dogs * bark))
+S[]
+  NP[pl]
+    Det[pl]
+      these
+    N[pl]
+      dogs
+  VP[pl]
+    V[pl]
+      bark
