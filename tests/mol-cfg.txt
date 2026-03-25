@@ -116,4 +116,20 @@ S[]
     V[sg]
       barks
 
->>> grammar.sample(trace=True)
+>>> import random
+>>> random.seed(42)
+>>> print(grammar.sample())
+S[]
+  NP[sg]
+    Det[sg]
+      this
+    N[sg]
+      dog
+  VP[sg]
+    V[sg]
+      barks
+>>> print(grammar.sample())
+>>> print(grammar.sample())
+>>> parse = invert(grammar)
+>>> parse(these * dogs * bark)
+S(0:3)

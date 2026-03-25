@@ -1,7 +1,8 @@
 
+import random
 from heapq import heappush, heappop
 from .lang import Language, Symbol, Category, Variable, Value, string, intern_symbol
-from .io import PrettyString
+from .io import PrettyString, PrettyPrinter
 
 
 def grule (lhs, *rhs, cost=0):
@@ -59,6 +60,9 @@ class Rule:
                 for v in cat.features:
                     if isinstance(v, Variable) and v not in self.bindings:
                         self.bindings[v] = Value.top
+
+    def is_preterminal (self):
+        return all(isinstance(x, Symbol) for x in self.rhs)
 
     def start (self):
         return Partial(self, 0, self.bindings, [])
@@ -379,54 +383,34 @@ class Generator:
     def __init__ (self, grammar):
         self._grammar = grammar
 
-    def __call__ (self, cat=None, seed=None, max_attempts=100, max_depth=100, trace=False):
-        if seed is not None:
-            random.seed(seed)
+    def __call__ (self, cat=None, max_attempts=100, max_depth=100, trace=False):
         if cat is None:
             cat = self._grammar.start_cat()
         for _ in range(max_attempts):
             try:
-                return self._call1(cat, max_depth, trace)
-            except:
+                self.pprint = PrettyPrinter()
+                return self._generate_from(cat, 0, max_depth)
+            except Exception as e:
                 pass
-        if trace:
-            print('Exceeded max_attempts')
 
-    def _call1 (self, cat, max_depth, trace):
-        print('_call1', cat, max_depth, trace)
-        if trace:
-            with PrettyString() as pprint:
-                return self._generate_from(cat, 0, max_depth, pprint)
-        else:
-            return self._generate_from(cat, 0, max_depth, None)
-
-    def _generate_from (self, cat, i, max_depth, pprint):
-        self.trace(pprint, 'push', cat, i)
+    def _generate_from (self, cat, i, max_depth):
+        print('cat=', cat)
         g = self._grammar
         rules = self._grammar.expansions(cat)
+        
+
+        print('rules=', rules)
         r = random.choice(rules)
         if r.is_preterminal():
-            self.trace(pprint, 'pop', r.lhs, r.rhs, i, i+1)
+            print('return', r.lhs, r.rhs)
             return Node(r.lhs, r.rhs, r, i, i+1, r.cost)
         else:
             m = r.topdown(cat)
             while not m.is_complete():
                 chcat = m.expectation()
                 if max_depth < 1:
-                    self.trace(pprint, 'abort', 'Exceeded max_depth')
                     raise Exception('Exceeded max_depth')
-                child = self._generate_from(chcat, i, max_depth-1, pprint)
+                j = m.j if m.children else i
+                child = self._generate_from(chcat, j, max_depth-1)
                 m = m * child
             return m.reduce()
-
-    def trace (self, pprint, which, *args):
-        if pprint is not None:
-            if which == 'push':
-                pprint(*args)
-                pprint.start_indent()
-            elif which == 'pop':
-                pprint.end_indent()
-                pprint('->', *args)
-            elif which == 'abort':
-                pprint(*args)
-
