@@ -2,7 +2,21 @@
 >>> from umling.mol import *
 >>> Letter = alphabet('abcdefghijklmnopqrstuvwxyz')
 >>> Letter
+a + b + c + d + e + f + g + h + i + j + k + l + m + n + o + p + q + r + s + t + u + v + w + x + y + z
 >>> Digit = alphabet('0123456789')
+>>> Digit
+'0' + '1' + '2' + '3' + '4' + '5' + '6' + '7' + '8' + '9'
 >>> Underscore = sym('_')
 >>> Alphanumeric = Letter + Underscore + Digit
+>>> Alphanumeric
+'0' + '1' + '2' + '3' + '4' + '5' + '6' + '7' + '8' + '9' + _ + a + b + c + d + e + f + g + h + i + j + k + l + m + n + o + p + q + r + s + t + u + v + w + x + y + z
 >>> Identifier = (Letter + Underscore) * star(Alphanumeric)
+>>> Identifier(letters('_foo2'))
+True
+>>> Identifier(letters('2 +'))
+False
+>>> LB = sym('[')
+>>> RB = sym(']')
+>>> Arrow = sym('-') * sym('>')
+>>> Newline = opt(sym('\r')) * sym('\n')
+>>> Whitespace = repeat(sym(' ') + sym('\t') + sym('\f') + sym('\v'))
