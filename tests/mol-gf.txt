@@ -2,14 +2,12 @@
 >>> from umling.mol import *
 >>> Letter = crange('a', 'z') + crange('A', 'Z')
 >>> Letter('a')
-
+True
 >>> Digit = alphabet('0123456789')
 >>> Digit
 '0' + '1' + '2' + '3' + '4' + '5' + '6' + '7' + '8' + '9'
 >>> Underscore = sym('_')
 >>> Alphanumeric = Letter + Underscore + Digit
->>> Alphanumeric
-'0' + '1' + '2' + '3' + '4' + '5' + '6' + '7' + '8' + '9' + _ + a + b + c + d + e + f + g + h + i + j + k + l + m + n + o + p + q + r + s + t + u + v + w + x + y + z
 >>> Identifier = (Letter + Underscore) * star(Alphanumeric)
 >>> Identifier(letters('_foo2'))
 True
@@ -32,7 +30,6 @@ False
 ...     io(Whitespace, WS)
 ... )
 ...
->>> Stream = repeat(Token)
 
 >>> input = letters('''
 ...     S -> NP VP
@@ -40,8 +37,14 @@ False
 ... ''')
 ...
 
->>> Token(letters('    '))
-[0] (WS,)
->>> Token(letters('S'))
+>>> fst = Token.__fst__()
+>>> q = fst.initialstate
+>>> q.name
+>>> type(q)
+<class 'pyfoma.fst.State'>
+>>> g = iter(string(input))
+>>> a = next(g)
+>>> type(a)
+<class 'umling.mol.lang.Symbol'>
+>>> 
 
->>> Stream(input)

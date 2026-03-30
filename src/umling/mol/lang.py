@@ -1,6 +1,6 @@
 
 import builtins, types
-from pyfoma import FST, State
+from pyfoma import FST, State, Transition
 from .namespace import Namespace
 
 LANGLE = '\u27e8'
@@ -1466,6 +1466,62 @@ def graph (x):
     else:
         raise Exception('Not drawable')
 
+
+#--  Tokenizer  ----------------------------------------------------------------
+
+class Token (Symbol):
+
+    def __init__ (self, cat, children):
+        Symbol.__init__(self, cat)
+        self.children = children
+
+
+class Config:
+
+    def __init__ (self, prev, out, state):
+        self.prev = prev
+        self.out = out
+        self.state = state
+
+
+class Tokenizer:
+
+    def __init__ (self, language, default_token=sym('token')):
+        self.language = language
+        self.default_token
+
+    def start (self):
+        self.configs = [Config([], None, self.language.fst().initialstate)]
+
+    def advance (self, a):
+        for cfg in self.configs:
+            for (label, t) in cfg.state.transitionsin[a]:
+                yield Config(cfg, label[1] if len(label) > 1 else None, t.targetstate)
+
+    def next_token (self, instring, i):
+        self.configs = None
+        for (j, a) in enumerate(instring, i+1):
+            newconfigs = list(self.advance(a))
+            if not newconfigs:
+                return (j, self.unwind())
+            self.configs = newconfigs
+        
+    def unwind (self):
+        # there should only be one; we simply take the first
+        cfg = self.configs[0]
+        return cfg.unwind()
+
+    def __call__ (self, instring):
+        i = 0
+        while i < len(instring):
+            out = self.next_token(instring, i)
+            if out:
+                (j, tokens) = out
+                yield tokens
+                i = j
+            else:
+                yield default_token
+                i += 1
 
 
 #--  Coercion  -----------------------------------------------------------------
