@@ -1483,40 +1483,49 @@ class Config:
         self.out = out
         self.state = state
 
+    def unwind (self):
+        if self.out:
+            return self.out
+        elif self.prev:
+            return self.prev.unwind()
+        else:
+            return ''
+
+    def __repr__ (self):
+        return f'<Config prev={id(self.prev)} out={self.out} state={id(self.state)}>'
+
 
 class Tokenizer:
 
     def __init__ (self, language, default_token=sym('token')):
         self.language = language
-        self.default_token
+        self.default_token = default_token
 
-    def start (self):
-        self.configs = [Config([], None, self.language.fst().initialstate)]
+    def initial_configs (self):
+        return [Config([], None, self.language.fst().initialstate)]
 
-    def advance (self, a):
-        for cfg in self.configs:
+    def advance (self, configs, a):
+        for cfg in configs:
             for (label, t) in cfg.state.transitionsin[a]:
                 yield Config(cfg, label[1] if len(label) > 1 else None, t.targetstate)
 
-    def next_token (self, instring, i):
-        self.configs = None
+    def next_token (self, configs, instring, i):
         for (j, a) in enumerate(instring, i+1):
-            newconfigs = list(self.advance(a))
+            newconfigs = list(self.advance(configs, a))
             if not newconfigs:
-                return (j, self.unwind())
-            self.configs = newconfigs
-        
-    def unwind (self):
-        # there should only be one; we simply take the first
-        cfg = self.configs[0]
-        return cfg.unwind()
+                # there should only be one; we simply take the first
+                return (j, configs[0].unwind())
 
     def __call__ (self, instring):
+        configs = self.initial_configs()
         i = 0
         while i < len(instring):
-            out = self.next_token(instring, i)
+            print('i=', i, 'configs=', configs)
+            out = self.next_token(configs, instring, i)
+            print('out=', out)
             if out:
                 (j, tokens) = out
+                assert j > i
                 yield tokens
                 i = j
             else:

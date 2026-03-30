@@ -42,9 +42,7 @@ False
 >>> q.name
 >>> type(q)
 <class 'pyfoma.fst.State'>
->>> g = iter(string(input))
->>> a = next(g)
->>> type(a)
-<class 'umling.mol.lang.Symbol'>
->>> 
-
+>>> s = string(input)
+>>> from umling.mol.lang import Tokenizer
+>>> tkz = Tokenizer(Token)
+>>> list(tkz(s))
