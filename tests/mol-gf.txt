@@ -31,18 +31,13 @@ False
 ... )
 ...
 
->>> input = letters('''
+>>> s = letters('''
 ...     S -> NP VP
 ...     NP -> Det N
 ... ''')
 ...
 
->>> fst = Token.__fst__()
->>> q = fst.initialstate
->>> q.name
->>> type(q)
-<class 'pyfoma.fst.State'>
->>> s = string(input)
 >>> from umling.mol.lang import Tokenizer
 >>> tkz = Tokenizer(Token)
 >>> list(tkz(s))
+[NL, WS, ID, WS, ARROW, WS, ID, WS, ID, NL, WS, ID, WS, ARROW, WS, ID, WS, ID, NL]

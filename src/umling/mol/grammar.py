@@ -304,6 +304,23 @@ class GrammarBuilder:
         self.rules = grammar.rules
 
 
+class Tracer:
+
+    def __init__ (self, on):
+        self.on = on
+        self.pprint = PrettyPrinter() if on else None
+
+    def start (self, cat, rules, r):
+        if not self.on: return
+        self.pprint('start:', cat, r, rules)
+        self.pprint.start_indent()
+
+    def end (self, node):
+        if not self.on: return
+        self.pprint.end_indent()
+        self.pprint('->', node)
+
+
 class Parser:
 
     def __init__ (self, grammar):
@@ -422,23 +439,6 @@ class Generator:
             node = m.reduce()
             self.trace.end(node)
             return node
-
-
-class Tracer:
-
-    def __init__ (self, on):
-        self.on = on
-        self.pprint = PrettyPrinter() if on else None
-
-    def start (self, cat, rules, r):
-        if not self.on: return
-        self.pprint('start:', cat, r, rules)
-        self.pprint.start_indent()
-
-    def end (self, node):
-        if not self.on: return
-        self.pprint.end_indent()
-        self.pprint('->', node)
 
 
 class GrammarFile:

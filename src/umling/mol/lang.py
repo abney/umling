@@ -2,6 +2,7 @@
 import builtins, types
 from pyfoma import FST, State, Transition
 from .namespace import Namespace
+from .pprint import PrettyPrinter
 
 LANGLE = '\u27e8'
 RANGLE = '\u27e9'
@@ -71,7 +72,7 @@ def _fst_transitions (fst):
 
 def _fst_str_lines (fst):
     if fst.initialstate.name != 1:
-        yield f'*** Unexpected initial state {fst.initialstate.name}'
+        yield f'I({fst.initialstate.name})'
     for q in sorted(fst.states, key=lambda q:q.name):
         for (label, transitions) in sorted(q.transitions.items()):
             for trans in transitions:
@@ -87,6 +88,9 @@ def _fst_str_lines (fst):
 
 def _fst_str (fst):
     return '\n'.join(_fst_str_lines(fst))
+
+def print_fst (fst):
+    print(_fst_str(fst))
 
 def _copy_fst (fst):
     out = FST()
@@ -1471,9 +1475,11 @@ def graph (x):
 
 class Token (Symbol):
 
-    def __init__ (self, cat, children):
+    def __init__ (self, cat, children, i, j):
         Symbol.__init__(self, cat)
         self.children = children
+        self.i = i
+        self.j = j
 
 
 class Config:
@@ -1483,16 +1489,15 @@ class Config:
         self.out = out
         self.state = state
 
-    def unwind (self):
+    def out_symbol (self):
         if self.out:
             return self.out
         elif self.prev:
-            return self.prev.unwind()
-        else:
-            return ''
+            return self.prev.out_symbol()
 
     def __repr__ (self):
-        return f'<Config prev={id(self.prev)} out={self.out} state={id(self.state)}>'
+        prevname = self.prev.state.name if self.prev else 'None'
+        return f'<Config prev={prevname} out={self.out} state={self.state.name}>'
 
 
 class Tokenizer:
@@ -1502,35 +1507,59 @@ class Tokenizer:
         self.default_token = default_token
 
     def initial_configs (self):
-        return [Config([], None, self.language.fst().initialstate)]
+        return [Config(None, None, self.language.fst().initialstate)]
+
+    def transitions (self, cfg, a):
+        for (label, t) in cfg.state.transitionsin[a]:
+            yield Config(cfg, label[1] if len(label) > 1 else None, t.targetstate)
+
+    def iter_advance (self, configs, a):
+        for cfg in configs:
+            yield from self.transitions(cfg, a)
 
     def advance (self, configs, a):
-        for cfg in configs:
-            for (label, t) in cfg.state.transitionsin[a]:
-                yield Config(cfg, label[1] if len(label) > 1 else None, t.targetstate)
+        return list(self.iter_advance(configs, a))
 
-    def next_token (self, configs, instring, i):
-        for (j, a) in enumerate(instring, i+1):
-            newconfigs = list(self.advance(configs, a))
+    ##  I'm guessing that we only need to do this with the final state
+
+    def epsilon_close (self, configs):
+        while True:
+            newconfigs = self.advance(configs, '')
             if not newconfigs:
-                # there should only be one; we simply take the first
-                return (j, configs[0].unwind())
+                return configs
+            configs = newconfigs
+
+    def noneps_run (self, configs, instring, i):
+        j = i
+        while j < len(instring):
+            a = instring[j].data
+            newconfigs = self.advance(configs, a)
+            if not newconfigs:
+                return (configs, j)
+            j += 1
+            configs = newconfigs
+        return (configs, j)
+
+    def run (self, configs, instring, i):
+        (configs, j) = self.noneps_run(configs, instring, i)
+        return (self.epsilon_close(configs), instring, i, j)
+
+    def runstate_to_token (self, runstate):
+        (configs, instring, i, j) = runstate
+        outsym = configs[0].out_symbol()
+        if not outsym:
+            outsym = self.default_token
+        return Token(outsym, instring[i:j], i, j)
 
     def __call__ (self, instring):
+        if isinstance(instring, Concatenation):
+            instring = string(instring)
         configs = self.initial_configs()
         i = 0
         while i < len(instring):
-            print('i=', i, 'configs=', configs)
-            out = self.next_token(configs, instring, i)
-            print('out=', out)
-            if out:
-                (j, tokens) = out
-                assert j > i
-                yield tokens
-                i = j
-            else:
-                yield default_token
-                i += 1
+            token = self.runstate_to_token(self.run(configs, instring, i))
+            yield token
+            i = token.j
 
 
 #--  Coercion  -----------------------------------------------------------------
