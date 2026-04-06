@@ -191,7 +191,6 @@ def _fst_length (fst):
 
 class Language:
 
-    issymbol = False
     isstring = False
     istransducer = None
     isfinite = None
